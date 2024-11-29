@@ -8,14 +8,12 @@ if (require('electron-squirrel-startup')) {
 
 require('@electron/remote/main').initialize()
 
-const StateManager = require('./backend/StateManager');
-const SystemMonitor = require('./backend/SystemMonitor');
-const AdminService = require('./backend/AdminService');
+const StateManager = require('./backend/statemanager');
+const NotificationManager = require('./backend/NotificationManager');
 
 // Initialize services
 global.stateManager = new StateManager();
-global.systemMonitor = new SystemMonitor(global.stateManager);
-global.adminService = new AdminService(global.stateManager, global.fileManager);
+global.notificationManager = new NotificationManager();
 global.mainWindow = null;
 global.adminWindow = null;
 
@@ -29,16 +27,13 @@ const createMainWindow = () => {
       nodeIntegration: true,    // Allows direct Node.js access
       contextIsolation: false,  // Allows direct access to Electron APIs
       enableRemoteModule: true, // Allows remote module access
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.js')
     },
   });
 
   require("@electron/remote/main").enable(global.mainWindow.webContents);
 
-  // and load the index.html of the app.
   global.mainWindow.loadFile(path.join(__dirname, 'frontend', 'index.html'));
-
-  // Open the DevTools.
   global.mainWindow.webContents.openDevTools();
 
   // Global function to manage admin window

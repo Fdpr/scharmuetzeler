@@ -1,7 +1,63 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
     Arial, sans-serif;
-  margin: auto;
-  max-width: 38rem;
-  padding: 2rem;
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+}
+/* VIEWPORT STUFF */
+
+svg {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.token-label {
+  background-color:rgb(42, 42, 61);
+  fill: white;
+  padding: .1rem;
+  border-radius: 0.1rem;
+}
+
+.active {
+  filter: brightness(1.4) saturate(1.5) contrast(1.2); 
+}
+
+/* POPUP STUFF */
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: end;
+}
+
+.popup {
+  background-color:rgb(42, 42, 61);
+  color: white;
+  padding: .75rem;
+  border-radius: 0.5rem;
+  margin: .25rem;
+  box-shadow: 0 0 1rem rgba(0, 0, 0, 0.1);
+  width: 300px;
+
+}
+
+@keyframes fadeOut {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.fadeout {
+  animation: fadeOut 300ms;
 }

@@ -1,6 +1,8 @@
+const remote = require('@electron/remote')
+
 class AdminPanel {
     constructor() {
-        this.stateManager = require('@electron/remote').getGlobal('stateManager');
+        this.stateManager = remote.getGlobal('stateManager');
         // this.setupEventListeners();
         const AdminDashboard = require("./AdminDashboard");
         new AdminDashboard(this.stateManager);

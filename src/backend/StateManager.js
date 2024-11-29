@@ -2,20 +2,13 @@ class StateManager {
     constructor() {
         this.listeners = new Map();
         this.state = {
-            settings: {},
-            stats: {
-                lastUpdate: null,
-                uptime: 0
-            },
-            system: {
-                cpuUsage: 0,
-                memoryUsage: 0
-            }
+            log: [],
+
         };
     }
 
     updateState(path, value) {
-        // Helper to update nested state paths like 'stats.uptime'
+        // Helper to update nested state paths 
         const parts = path.split('.');
         let current = this.state;
         while (parts.length > 1) {
@@ -24,7 +17,6 @@ class StateManager {
         }
         current[parts[0]] = value;
 
-        // Notify listeners
         this.notifyListeners(path, value);
     }
 

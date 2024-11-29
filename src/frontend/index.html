@@ -1,14 +1,38 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>Hello World!</title>
-    <link rel="stylesheet" href="index.css" />
-    <script defer src="index.js"></script>
-  </head>
-  <body>
-    <h1>💖 Hello World!</h1>
-    <p>Welcome to your Electron</p>
-    <button id="button">Open Admin Panel</button>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Hello World!</title>
+  <link rel="stylesheet" href="index.css" />
+  <script defer src="index.js"></script>
+  <script defer src="main/popup.js"></script>
+  <script defer src="main/d3.v7.min.js"></script>
+  <script defer src="main/viewport.js"></script>
+</head>
+
+<body>
+  <div class="overlay" id="overlay"></div>
+
+
+  <svg id="viewport">
+    <filter x="-0.2" y="-0.2" width="1.4" height="1.4" id="solid">
+      <!-- Flood fill for the background -->
+      <feFlood flood-color="rgb(42, 42, 61)" result="bg" />
+
+      <!-- Add padding using morphology -->
+      <feMorphology in="SourceAlpha" operator="dilate" radius="4" result="expanded" />
+
+      <!-- Smooth edges with Gaussian blur -->
+      <feGaussianBlur in="expanded" stdDeviation="1" result="rounded" />
+
+      <!-- Combine the smooth background with the text -->
+      <feMerge>
+        <feMergeNode in="rounded" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </svg>
+</body>
+
 </html>
