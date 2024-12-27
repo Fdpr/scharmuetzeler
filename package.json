@@ -33,6 +33,7 @@
     "@electron/remote": "^2.1.2",
     "@turf/turf": "^7.1.0",
     "d3": "^7.9.0",
+    "electron-is-dev": "^3.0.1",
     "electron-squirrel-startup": "^1.0.1"
   }
 }

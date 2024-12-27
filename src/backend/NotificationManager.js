@@ -12,6 +12,10 @@ class NotificationManager {
             listener(msg);
         }
     }
+
+    error(msg) {
+        this.message(msg);
+    }
 }
 
 module.exports = NotificationManager;

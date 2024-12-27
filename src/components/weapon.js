@@ -1,29 +1,38 @@
-import { roll } from "../util/rolling";
+const { roll } = require("../util/rolling");
 
-export default class Weapon {
+class Weapon {
     constructor(name, ATMod, PAMod, FKMod, TP, reach, nachladen) {
-        this.name = name;
-        this.ATMod = ATMod;
-        this.PAMod = PAMod;
-        this.FKMod = FKMod;
-        this.reach = reach;
-        this.nachladen = nachladen;
+        this.name = String(name);
+        this.ATMod = parseInt(ATMod);
+        this.PAMod = parseInt(PAMod);
+        this.FKMod = parseInt(FKMod);
+        this.reach = parseInt(reach);
+        this.nachladen = parseInt(nachladen);
 
-        let tempTP = TP;
+        let tempTP = String(TP);
         if (!tempTP.startsWith('+') && !tempTP.startsWith('-')) {
             tempTP = '+' + tempTP;
         }
+        tempTP = tempTP.split(/(?=[\+-])/); // Split at + or - but keep the sign
 
         this.TP = tempTP.map(part => {
-            const match = part.match(/^([+-]?)(\d*)([A-Z])(\d+)?$/);
+            const match = part.match(/^([\+-])(\d*)W?(\d+)?$/);
             if (match) {
                 const sign = match[1] || ""; // "+" or "-"
                 const firstNumber = match[2] ? parseInt(match[2], 10) : 1; // Default to 1 if missing
-                const secondNumber = match[4] ? parseInt(match[4], 10) : 1; // Default to 1 if missing
+                const secondNumber = match[3] ? parseInt(match[3], 10) : 1; // Default to 1 if missing
                 return [sign, firstNumber, secondNumber];
             }
             return null; // In case of an invalid match
         });
+    }
+
+    TPString() {
+        return this.TP.map(component => {
+            if (!component) return ""; // Skip null components
+            const [sign, firstNumber, secondNumber] = component;
+            return secondNumber > 1 ? `${sign}${firstNumber}W${secondNumber}` : `${sign}${firstNumber}`;
+        }).join("").replace(/^\+/, ""); // Remove leading "+" if present
     }
 
     damage() {
@@ -48,7 +57,11 @@ export default class Weapon {
     }
 
     static copyFrom(weapon) {
-        return new Weapon(weapon.name, weapon.ATMod, weapon.PAMod, weapon.FKMod, weapon.TP, weapon.reach, weapon.nachladen);
+        return new Weapon(weapon.name, weapon.ATMod, weapon.PAMod, weapon.FKMod, weapon.TPString(), weapon.reach, weapon.nachladen);
+    }
+
+    copy() {
+        return Weapon.copyFrom(this);
     }
 
     toJSON() {
@@ -57,9 +70,11 @@ export default class Weapon {
             ATMod: this.ATMod,
             PAMod: this.PAMod,
             FKMod: this.FKMod,
-            TP: this.TP,
+            TP: this.TPString(),
             reach: this.reach,
             nachladen: this.nachladen
         };
     }
 }
+
+module.exports = Weapon;

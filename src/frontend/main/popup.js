@@ -12,7 +12,7 @@ const addPopup = (message) => {
 
     setTimeout(() => {
         popup.classList.add('fadeout');
-        setTimeout(() => popup.remove(), 300)
+        setTimeout(() => popup.remove(), 250)
     }, 1500);
 }
 

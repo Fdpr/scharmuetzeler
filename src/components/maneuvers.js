@@ -17,7 +17,7 @@
  * }
  */
 
-export const maneuvers = [
+const maneuvers = [
     {
         name: "Laufen",
         check: (troop) => !troop.isMelee || troop.hasCondition("f"),
@@ -33,6 +33,8 @@ export const maneuvers = [
     }
 ]
 
-export const actions = [
+const actions = [
 
 ]
+
+module.exports = { maneuvers, actions };

@@ -1,45 +1,27 @@
-const remote = require('@electron/remote')
+const { ipcRenderer } = require('electron');
+const { TroopEditor, LeaderEditor } = require('./admin/troopEditor');
+const AdminPanel = require('./admin/adminPanel');
 
-class AdminPanel {
-    constructor() {
-        this.stateManager = remote.getGlobal('stateManager');
-        // this.setupEventListeners();
-        const AdminDashboard = require("./AdminDashboard");
-        new AdminDashboard(this.stateManager);
-    }
+var state = "";
 
-    setupEventListeners() {
-        document.getElementById('saveConfig').addEventListener('click', () => {
-            this.saveConfig();
-        });
-    }
-
-    async saveConfig() {
-        try {
-            const config = {
-                setting1: document.getElementById('setting1').value,
-                setting2: document.getElementById('setting2').value
-            };
-
-            if (this.fileManager.writeJSON('config.json', config)) {
-                this.showSuccess('Config saved successfully!');
-            } else {
-                this.showError('Failed to save config');
-            }
-        } catch (error) {
-            this.showError(`Error: ${error.message}`);
+window.addEventListener('DOMContentLoaded', () => {
+    ipcRenderer.on('signal', (_event, payload) => {
+        console.log('Received signal:', payload);
+        if (payload.type === "troop") {
+            state = "troop";
+            document.title = "Truppen-Editor";
+            document.body.innerHTML = "";
+            document.body.appendChild(TroopEditor(payload.data));
+        } else if (payload.type === "leader") {
+            state = "leader";
+            document.title = "Anf&#252;hrer-Editor";
+            document.body.innerHTML = "";
+            document.body.appendChild(LeaderEditor(payload.data));
+        } else if (payload.type === "admin-panel") {
+            state = "admin-panel";
+            document.title = "Admin-Panel";
+            document.body.innerHTML = "";
+            document.body.appendChild(AdminPanel());
         }
-    }
-
-    showSuccess(message) {
-        // Show success notification
-    }
-
-    showError(message) {
-        // Show error notification
-    }
-}
-
-// Initialize admin panel
-new AdminPanel();
-
+    })
+})

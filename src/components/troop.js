@@ -1,62 +1,80 @@
-import { roll, check } from "../util/rolling";
+const { roll, check } = require("../util/rolling");
+const { getGlobal } = require("../util/process");
 
-const state = require("@electron/remote").getGlobal('stateManager');
-const message = require("@electron/remote").getGlobal('notificationManager').message;
+const Weapon = require("./weapon");
+const { applyAllConditions } = require("./conditions");
 
-export default class Troop {
-    constructor(name, party, ref, EK, anzahl, RTM, GSBasis, GSRitt, MaxLP, RSBasis, ATBasis, PABasis, FKBasis, MOBasis, MOimmun, AUBasis, INIBasis, actionCount, maneuverCount, weapons,
+function message(msg) {
+    getGlobal("notificationManager").message(msg);
+}
+
+function getStateManager() {
+    return getGlobal("stateManager");
+}
+
+class Troop {
+    constructor(name, party, ref, EK, anzahl, big, shield, RTM, GSBasis, GSRitt, MaxLP, RSBasis, ATBasis, PABasis, FKBasis, MOBasis, AUBasis, INIBasis, actionCount, maneuverCount, weapons, properties,
         // These parameters only need to be passed if the Troop is constructed mid-combat
-        LP, MO, ErsP, RegP, Ini, weapon, isMelee, meleeCounter, meleeTarget, parryCounter, isRange, nachladen, rangeTarget, isMove, isPlaenkeln, isSchildwall, isPikenwall, mods, conditions, immunities, leader) {
+        LP, MO, MOImmun, ErsP, RegP, Ini, weapon, isMelee, meleeCounter, meleeTarget, parryCounter, isRange, nachladen, rangeTarget, isMove, isPlaenkeln, isSchildwall, isPikenwall, mods, conditions, immunities, leader) {
 
         // static fields
         // THESE SHOULD NEVER CHANGE I THINK
-        this.name = name;
-        this.party = party
-        this.ref = ref;
-        this.EK = EK;
-        this.anzahl = anzahl;
-        this.RTM = RTM;
-        this.GSBasis = GSBasis;
-        this.GSRitt = GSRitt;
-        this.MaxLP = MaxLP;
-        this.RSBasis = RSBasis;
-        this.ATBasis = ATBasis;
-        this.PABasis = PABasis;
-        this.FKBasis = FKBasis;
-        this.MOBasis = MOBasis;
-        this.AUBasis = AUBasis;
-        this.INIBasis = INIBasis;
-        this.actionCount = actionCount;
-        this.maneuverCount = maneuverCount;
-        if (weapons[0] instanceof Weapon) {
+        this.name = String(name);
+        this.party = String(party);
+        this.ref = String(ref);
+        this.EK = parseInt(EK);
+        this.anzahl = parseInt(anzahl);
+        this.big = Boolean(big) || false;
+        this.shield = Boolean(shield) || false;
+        this.RTM = parseInt(RTM);
+        this.GSBasis = parseInt(GSBasis);
+        this.GSRitt = parseInt(GSRitt);
+        this.MaxLP = parseInt(MaxLP);
+        this.RSBasis = parseInt(RSBasis);
+        this.ATBasis = parseInt(ATBasis);
+        this.PABasis = parseInt(PABasis);
+        this.FKBasis = parseInt(FKBasis);
+        this.MOBasis = parseInt(MOBasis);
+        this.AUBasis = parseInt(AUBasis);
+        this.INIBasis = parseInt(INIBasis);
+        this.actionCount = parseInt(actionCount);
+        this.maneuverCount = parseInt(maneuverCount);
+        if (weapons && weapons[0] instanceof Weapon) {
             this.weapons = weapons;
-        } else {
+        } else if (weapons && weapons[0] instanceof String) {
             this.weapons = weapons.map(Weapon.fromJSON);
+        } else {
+            this.weapons = [new Weapon("Faust", 0, 0, 0, "W6", 0, 0)];
+        }
+        if (Array.isArray(properties) && properties.every(prop => typeof prop === 'string')) {
+            this.properties = properties;
+        } else {
+            this.properties = [];
         }
 
         // dynamic fields
-        this.LP = LP || MaxLP;
-        this.MO = MO || MOBasis;
-        this.MOimmun = MO || MOimmun;
-        this.ErsP = ErsP || 0;
-        this.RegP = RegP || 0;
-        this.Ini = Ini || (this.INIBasis + roll(6, 3));
-        this.weapon = weapon || 0;
+        this.LP = parseInt(LP) || this.MaxLP;
+        this.MO = parseInt(MO) || this.MOBasis;
+        this.MOimmun = parseInt(MOImmun) || this.EK;
+        this.ErsP = parseInt(ErsP) || 0;
+        this.RegP = parseInt(RegP) || 0;
+        this.Ini = parseInt(Ini) || (2 * this.INIBasis + roll(6, this.EK));
+        this.weapon = parseInt(weapon) || 0;
 
         // flags
-        this.isMelee = isMelee || false; // was in melee combat this round (should not rely on this value, always check if meleeTarget is set, too)
-        this.meleeCounter = meleeCounter || 0;
-        this.meleeTarget = meleeTarget || null; // last target of a melee attack for calculating next attack (removed when disengaged)
-        this.parryCounter = parryCounter || 0; // counts the number of parries done this round
+        this.isMelee = Boolean(isMelee) || false; // was in melee combat this round (should not rely on this value, always check if meleeTarget is set, too)
+        this.meleeCounter = parseInt(meleeCounter) || 0;
+        this.meleeTarget = meleeTarget || ""; // last target of a melee attack for calculating next attack (removed when disengaged)
+        this.parryCounter = parseInt(parryCounter) || 0; // counts the number of parries done this round
 
-        this.isRange = isRange || false; // has made a ranged attack this round
-        this.nachladen = nachladen || -1; // rounds until next shot is ready
-        this.rangeTarget = rangeTarget || null; // last target of a ranged attack for calculating next attack (removed when disengaged)
+        this.isRange = Boolean(isRange) || false; // has made a ranged attack this round
+        this.nachladen = parseInt(nachladen) || 0; // rounds until next shot is ready
+        this.rangeTarget = rangeTarget || ""; // last target of a ranged attack for calculating next attack (removed when disengaged)
 
-        this.isMove = isMove || false; // was moving this round
-        this.isPlaenkeln = isPlaenkeln || false;
-        this.isSchildwall = isSchildwall || false;
-        this.isPikenwall = isPikenwall || false;
+        this.isMove = Boolean(isMove) || false; // was moving this round
+        this.isPlaenkeln = Boolean(isPlaenkeln) || false;
+        this.isSchildwall = Boolean(isSchildwall) || false;
+        this.isPikenwall = Boolean(isPikenwall) || false;
 
 
         // mods and stuff
@@ -66,8 +84,8 @@ export default class Troop {
         } else {
             this.mods = baseMods;
         }
-        this.conditions = conditions || {};
-        this.immunities = immunities || {};
+        this.conditions = conditions || [];
+        this.immunities = immunities || [];
 
         // inspiration stuff
         this.leader = leader || null; // String representing the current leader
@@ -77,11 +95,19 @@ export default class Troop {
      * Returns a deep copy of the troop
     */
     static copyFrom(troop) {
-        return new Troop(troop.name, troop.party, troop.ref, troop.EK, troop.anzahl, troop.RTM, troop.GSBasis, troop.GSRitt, troop.MaxLP, troop.RSBasis, troop.ATBasis, troop.PABasis, troop.FKBasis, troop.MOBasis, troop.MOimmun, troop.AUBasis, troop.INIBasis, troop.actionCount, troop.maneuverCount, troop.weapons.map(Weapon.copyFrom), troop.LP, troop.MO, troop.ErsP, troop.RegP, troop.Ini, troop.weapon, troop.isMelee, troop.meleeCounter, troop.meleeTarget, troop.parryCounter, troop.isRange, troop.nachladen, troop.rangeTarget, troop.isMove, troop.isPlaenkeln, troop.isSchildwall, troop.isPikenwall, { ...troop.mods }, [...troop.conditions], troop.immunities, troop.leader);
+        return new Troop
+            (troop.name, troop.party, troop.ref, troop.EK, troop.anzahl, troop.big, troop.shield, troop.RTM, troop.GSBasis, troop.GSRitt, troop.MaxLP, troop.RSBasis, troop.ATBasis, troop.PABasis, troop.FKBasis, troop.MOBasis, troop.AUBasis, troop.INIBasis, troop.actionCount, troop.maneuverCount, troop.weapons.map(weapon => Weapon.copyFrom(weapon)), troop.properties,
+                troop.LP, troop.MO, troop.MOimmun, troop.ErsP, troop.RegP, troop.Ini, troop.weapon, troop.isMelee, troop.meleeCounter, troop.meleeTarget, troop.parryCounter, troop.isRange, troop.nachladen, troop.rangeTarget, troop.isMove, troop.isPlaenkeln, troop.isSchildwall, troop.isPikenwall, troop.mods, troop.conditions, troop.immunities, troop.leader);
+    }
+
+    copy() {
+        return Troop.copyFrom(this);
     }
 
     static fromJSON(json) {
-        return new Troop(json.name, json.party, json.ref, json.EK, json.anzahl, json.RTM, json.GSBasis, json.GSRitt, json.MaxLP, json.RSBasis, json.ATBasis, json.PABasis, json.FKBasis, json.MOBasis, json.MOimmun, json.AUBasis, json.INIBasis, json.actionCount, json.maneuverCount, json.weapons, json.LP, json.MO, json.ErsP, json.RegP, json.Ini, json.weapon, json.isMelee, json.meleeCounter, json.meleeTarget, json.parryCounter, json.isRange, json.nachladen, json.rangeTarget, json.isMove, json.isPlaenkeln, json.isSchildwall, json.isPikenwall, json.mods, json.conditions, json.immunities, json.leader);
+        return new Troop
+            (json.name, json.party, json.ref, json.EK, json.anzahl, json.big, json.shield, json.RTM, json.GSBasis, json.GSRitt, json.MaxLP, json.RSBasis, json.ATBasis, json.PABasis, json.FKBasis, json.MOBasis, json.AUBasis, json.INIBasis, json.actionCount, json.maneuverCount, json.weapons.map(weapon => Weapon.fromJSON(weapon)), json.properties,
+                json.LP, json.MO, json.MOimmun, json.ErsP, json.RegP, json.Ini, json.weapon, json.isMelee, json.meleeCounter, json.meleeTarget, json.parryCounter, json.isRange, json.nachladen, json.rangeTarget, json.isMove, json.isPlaenkeln, json.isSchildwall, json.isPikenwall, json.mods, json.conditions, json.immunities, json.leader);
     }
 
     toJSON() {
@@ -91,6 +117,8 @@ export default class Troop {
             ref: this.ref,
             EK: this.EK,
             anzahl: this.anzahl,
+            big: this.big,
+            shield: this.shield,
             RTM: this.RTM,
             GSBasis: this.GSBasis,
             GSRitt: this.GSRitt,
@@ -100,14 +128,15 @@ export default class Troop {
             PABasis: this.PABasis,
             FKBasis: this.FKBasis,
             MOBasis: this.MOBasis,
-            MOimmun: this.MOimmun,
             AUBasis: this.AUBasis,
             INIBasis: this.INIBasis,
             actionCount: this.actionCount,
             maneuverCount: this.maneuverCount,
             weapons: this.weapons.map(weapon => weapon.toJSON()),
+            properties: this.properties,
             LP: this.LP,
             MO: this.MO,
+            MOImmun: this.MOimmun,
             ErsP: this.ErsP,
             RegP: this.RegP,
             Ini: this.Ini,
@@ -136,6 +165,16 @@ export default class Troop {
 
     healLP(amount) {
         this.LP = Math.min(this.MaxLP, this.LP + amount);
+        if (this.LP / this.MaxLP < 0.25) {
+            this.addCondition("g", "Geringe LE", -1);
+            this.removeCondition("n");
+        } else if (this.LP / this.MaxLP < 0.5) {
+            this.addCondition("n", "Niedrige LE", -1);
+            this.removeCondition("g");
+        } else {
+            this.removeCondition("n");
+            this.removeCondition("g");
+        }
     }
 
     /**
@@ -162,8 +201,14 @@ export default class Troop {
     }
 
     takeDamage(damage) {
-        this.LP -= Math.max(0, damage - this.get("RS"));
-        if (this.LP <= 0) {
+        let trueDamage = this.hasCondition("g") ? (damage - this.get("RS")) / 2 : damage - this.get("RS")
+        this.LP -= Math.max(0, trueDamage);
+        if (this.LP / this.MaxLP < 0.5) {
+            this.addCondition("n", "Niedrige LE", -1);
+        } else if (this.LP / this.MaxLP < 0.25) {
+            this.addCondition("g", "Geringe LE", -1);
+            this.removeCondition("n");
+        } else if (this.LP <= 0) {
             // TODO: handle death
         }
     }
@@ -179,26 +224,72 @@ export default class Troop {
      * handles combat checks
      * @param {string} stat the stat to roll for
      * @param {number} modifier the modifier to apply to the roll (negative for advantage, positive for disadvantage)
+     * @param {object} context additional context for the roll
      */
-    roll(stat, modifier) {
+    roll(stat, modifier, context = {}) {
         if (stat === "AT" || stat === "PA") this.isMelee = true;
         else if (stat === "FK") this.isRange = true;
 
         if (stat === "PA") {
-            const res = check(this.get("PA") - (modifier + this.parryCounter * (6 - this.get("EK") / 2)));
+            const res = check(this.get("PA", context) - (modifier + this.parryCounter * (6 - this.get("EK", context) / 2)));
             this.parryCounter++;
             return res;
         }
-        else return check(this.get(stat) - modifier);
+        else return check(this.get(stat, context) - modifier);
     }
 
     /**
      * Returns the value of a stat after applying all modifiers
+     * @param {string} stat the stat to get
+     * @param {object} context additional context for special modifiers
      */
-    get(stat) {
+    get(stat, context = {}) {
         switch (stat) {
-            case 'LP':
-                return this.LP;
+            case "EK":
+            case "AT":
+            case "PA":
+            case "FK":
+            case "TP":
+            case "MO":
+            case "RS":
+            case "AU":
+            case "GS":
+                let basis;
+                switch (stat) {
+                    case "EK":
+                        basis = this.EK;
+                        break;
+                    case "AT":
+                        basis = this.ATBasis + this.weapons[this.weapon].ATMod + this.get("EK");
+                        break;
+                    case "PA":
+                        basis = this.PABasis + this.weapons[this.weapon].PAMod + this.get("EK");
+                        break;
+                    case "FK":
+                        basis = this.FKBasis + this.weapons[this.weapon].FKMod + this.get("EK");
+                        break;
+                    case "TP":
+                        basis = this.get("EK")
+                    case "MO":
+                        basis = this.MOBasis;
+                        break;
+                    case "RS":
+                        basis = this.RSBasis;
+                        break;
+                    case "AU":
+                        basis = this.AUBasis;
+                        break;
+                    case "GS":
+                        basis = this.RTM == 2 ? this.GSBasis + this.GSRitt : this.GSBasis;
+                        break;
+                    default:
+                        basis = 0;
+                }
+                return Math.max(basis
+                    + this.mods[stat]
+                    + applyAllConditions(this.conditions.map(c => c.key), stat, context)
+                    + (this.leader ? getStateManager().getLeader(this.leader).get(stat) : 0),
+                    0);
             default:
                 return this[stat];
         }
@@ -230,6 +321,7 @@ export default class Troop {
         if (!has) {
             this.conditions.push({ key: key, name: name, counter: duration, ...rest });
             message(`${this.name} hat den Zustand ${name} ${duration > 0 ? `${duration} Runde(n)` : 'unbegrenzt'} lang erhalten.`);
+            return true;
         } else {
             if (duration === -1) {
                 has.counter = -1;
@@ -238,6 +330,7 @@ export default class Troop {
             if (has.counter >= duration || has.counter === -1) return;
             message(`${this.name} hat den Zustand ${name} nun noch weitere ${duration - has.counter} Runden lang.`);
             has.counter = duration;
+            return false;
         }
     }
 
@@ -250,6 +343,46 @@ export default class Troop {
         if (exists)
             message(`${this.name} hat den Zustand ${key} verloren.`);
     }
+
+    hasImmunity(key) {
+        // Go through immunities and check if the name of any matches the immunity
+        const foundImmunity = this.immunities.find(i => i.key === key);
+        return foundImmunity ? foundImmunity.counter : false;
+    }
+
+    getImmunity(key) {
+        if (this.hasImmunity(key)) {
+            return this.immunities.find(i => i.key === key);
+        } else {
+            return false;
+        }
+    }
+
+    addImmunity(key, name, duration, rest) {
+        const has = this.immunities.find(i => i.key === key);
+        if (!has) {
+            this.immunities.push({ key: key, name: name, counter: duration, ...rest });
+            message(`${this.name} ist nun gegen ${name} ${duration > 0 ? `${duration} Runde(n)` : 'unbegrenzt'} lang immun.`);
+            return true;
+        } else {
+            if (duration === -1) {
+                has.counter = -1;
+                message(`${this.name} ist nun unbegrenzt gegen ${name} immun.`);
+            }
+            if (has.counter >= duration || has.counter === -1) return;
+            message(`${this.name} ist nun noch weitere ${duration - has.counter} Runden lang gegen ${name} immun.`);
+            has.counter = duration;
+            return false;
+        }
+    }
+
+    removeImmunity(key) {
+        const exists = this.hasImmunity(key);
+        this.immunities = this.immunities.filter(i => i.key !== key);
+        if (exists)
+            message(`${this.name} ist nun nicht mehr gegen ${key} immun.`);
+    }
+
 
     /**
      * Removes a target so the troop stops automatically attacking it next round
@@ -293,7 +426,14 @@ export default class Troop {
             if (condition.counter < 0) return condition;
             return { ...condition, counter: condition.counter - 1 };
         });
-        this.conditions.filter(condition => condition.counter === 0).forEach(condition => this.removeCondition(condition.key));
+        [... this.conditions.filter(condition => condition.counter === 0)].forEach(condition => this.removeCondition(condition.key));
+
+        // do the same for immunities
+        this.immunities = this.immunities.map(immunity => {
+            if (immunity.counter < 0) return immunity;
+            return { ...immunity, counter: immunity.counter - 1 };
+        });
+        [... this.immunities.filter(immunity => immunity.counter === 0)].forEach(immunity => this.removeImmunity(immunity.key));
 
         // move all positive and negative modifiers one step closer to 0
         Object.keys(this.mods).forEach(key => {
@@ -369,3 +509,5 @@ export default class Troop {
     }
 
 }
+
+module.exports = Troop;

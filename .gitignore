@@ -88,5 +88,8 @@ typings/
 # Vite
 .vite/
 
+.vscode/
+.VSCodeCounter/
+
 # Electron-Forge
 out/
