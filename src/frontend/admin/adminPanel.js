@@ -1,7 +1,13 @@
+/**
+ * Displays an admin panel for editing weapons and conditions.
+ */
+
 const stateManager = require('@electron/remote').getGlobal('stateManager');
 const Weapon = require('../../components/weapon');
 
 const { generateInput } = require("./troopEditor");
+const { conditions: preMadeConditions } = require("../../components/conditions");
+
 
 function buildWeaponOptions(weapons, select, selected = 0) {
     select.innerHTML = "";
@@ -36,7 +42,6 @@ function WeaponEditor() {
     const deleteButton = document.createElement('button');
     deleteButton.innerText = "Löschen";
     deleteButton.addEventListener('click', () => {
-        console.log(weaponSelect.value);
         stateManager.deleteWeapon(parseInt(weaponSelect.value));
         weapons = stateManager.getState("weapons");
         buildWeaponOptions(weapons, weaponSelect);
@@ -60,16 +65,17 @@ function WeaponEditor() {
     weaponSelect.addEventListener('change', (event) => {
         weaponName.value = weapons[event.target.value].name;
         weaponTP.value = weapons[event.target.value].TPString();
-        weaponAT.value = weapons[event.target.value].ATMod;
-        weaponPA.value = weapons[event.target.value].PAMod;
-        weaponFK.value = weapons[event.target.value].FKMod;
-        weaponReach.value = weapons[event.target.value].reach;
-        weaponNachladen.value = weapons[event.target.value].nachladen;
+        weaponAT.value = parseInt(weapons[event.target.value].ATMod);
+        weaponPA.value = parseInt(weapons[event.target.value].PAMod);
+        weaponFK.value = parseInt(weapons[event.target.value].FKMod);
+        weaponReach.value = parseInt(weapons[event.target.value].reach);
+        weaponNachladen.value = parseInt(weapons[event.target.value].nachladen);
     });
 
     const addButton = document.createElement('button');
     addButton.innerText = "Hinzufügen";
     addButton.addEventListener('click', () => {
+        if (!weaponName.value || !weaponTP.value) return;
         stateManager.addWeapon(new Weapon(
             weaponName.value,
             parseInt(weaponAT.value),
@@ -160,6 +166,7 @@ function ConditionEditor() {
     const addButton = document.createElement('button');
     addButton.innerText = "Hinzufügen";
     addButton.addEventListener('click', () => {
+        if (!conditionKey.value || !conditionName.value || preMadeConditions.some(condition => condition.key === conditionKey.value)) return;
         conditions = conditions.filter(condition => condition.key !== conditionKey.value);
         conditions.push({
             key: conditionKey.value,
@@ -185,11 +192,249 @@ function ConditionEditor() {
     return container;
 }
 
+function PartyEditor() {
+    const container = document.createElement('div');
+    container.className = "two-column";
+    const partyTitle = document.createElement('h2');
+    partyTitle.className = "span-2";
+    partyTitle.innerText = "Partei-Editor";
+    container.appendChild(partyTitle);
+
+    let parties = stateManager.getState("config.parties");
+
+    const partySelect = document.createElement('select');
+
+    const makeParties = () => {
+        partySelect.size = parties.length;
+        partySelect.innerHTML = "";
+        parties.forEach((party, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.innerText = party;
+            partySelect.appendChild(option);
+        });
+    }
+
+    makeParties();
+
+    container.appendChild(partySelect);
+
+    const canEdit = stateManager.getState("gamestate.phase") === "Setup";
+
+    const deleteButton = document.createElement('button');
+    deleteButton.disabled = !canEdit;
+    deleteButton.innerText = "Löschen";
+    deleteButton.addEventListener('click', () => {
+        parties = parties.filter((_party, index) => index !== parseInt(partySelect.value));
+        stateManager.updateState("config.parties", parties);
+        makeParties();
+    });
+
+    container.appendChild(deleteButton);
+
+    const newParty = document.createElement('p');
+    newParty.innerHTML = "<b>Neue Partei</b>";
+    newParty.className = "span-2";
+    container.appendChild(newParty);
+
+    const partyName = generateInput("Name", "party-name", "", () => { }, container);
+
+    const addButton = document.createElement('button');
+    addButton.disabled = !canEdit;
+    addButton.innerText = "Hinzufügen";
+    addButton.addEventListener('click', () => {
+        if (parties.includes(partyName.value) || !partyName.value) {
+            return;
+        }
+        parties.push(partyName.value);
+        stateManager.updateState("config.parties", parties);
+        makeParties();
+    });
+
+    container.appendChild(addButton);
+
+    return container;
+
+}
+
+function RollPanel() {
+    const container = document.createElement('div');
+    container.className = "two-column";
+    const rollTitle = document.createElement('h2');
+    rollTitle.className = "span-2";
+    rollTitle.innerText = "Proben würfeln / Schaden";
+    container.appendChild(rollTitle);
+
+    const troops = stateManager.getState("troops");
+    const currentTroop = stateManager.getState("gamestate.activeEntity")
+    const selectLabel = document.createElement('label');
+    selectLabel.htmlFor = "troop-select";
+    selectLabel.innerText = "Truppe";
+    container.appendChild(selectLabel);
+
+    const troopSelect = document.createElement('select');
+    troopSelect.id = "troop-select";
+    troopSelect.size = 1;
+    troops.forEach((troop, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.innerText = troop.name;
+        option.selected = troop.name === currentTroop;
+        troopSelect.appendChild(option);
+    });
+    container.appendChild(troopSelect);
+
+    const rolls = ["Moralprobe", "Ausdauerprobe", "Regenerationsprobe", "AT", "PA", "FK", "TP", "MO", "AU"]
+    const rollLabel = document.createElement('label');
+    rollLabel.htmlFor = "roll-select";
+    rollLabel.innerText = "Probe";
+    container.appendChild(rollLabel);
+    const rollSelect = document.createElement('select');
+    rollSelect.id = "roll-select";
+    rollSelect.size = 1;
+    rolls.forEach(roll => {
+        const option = document.createElement('option');
+        option.value = roll;
+        option.innerText = roll;
+        rollSelect.appendChild(option);
+    });
+    container.appendChild(rollSelect);
+    generateInput("Erschwernis", "roll-modifier", 0, () => { }, container, 'number');
+    const rollButton = document.createElement('button');
+    rollButton.innerText = "Würfeln";
+    container.appendChild(rollButton);
+
+    const resultDisplay = document.createElement('span');
+    resultDisplay.innerText = "Ergebnis:";
+    container.appendChild(resultDisplay);
+
+    rollButton.addEventListener('click', () => {
+        const troop = troops[troopSelect.value];
+        const roll = rollSelect.value;
+        const modifier = parseInt(document.getElementById("roll-modifier").value);
+        const context = {}
+        let result;
+        if (roll === "Moralprobe") {
+            result = troop.doMoralProbe(modifier);
+        } else if (roll === "Ausdauerprobe") {
+            result = troop.doAusdauerProbe(modifier);
+        } else if (roll === "Regenerationsprobe") {
+            result = troop.doRegenerationsProbe(modifier);
+        } else if (roll === "TP") {
+            result = troop.doDamage() + " TP";
+        } else {
+            result = troop.roll(roll, context, modifier);
+        }
+        if (roll !== "TP") {
+            result = result ? "Bestanden" : "Gescheitert";
+        }
+
+        resultDisplay.innerText = result;
+        stateManager.updateState("tokens", stateManager.getState("tokens"));
+    });
+
+    const damageHeader = document.createElement('p');
+    damageHeader.innerHTML = "<b>Schaden anrichten</b>";
+    damageHeader.className = "span-2";
+    container.appendChild(damageHeader);
+
+    generateInput("Schaden", "damage", 0, () => { }, container, 'number');
+    generateInput("Rüstung ignorieren", "ignoreRS", false, () => { }, container, 'checkbox');
+
+    const damageButton = document.createElement('button');
+    damageButton.innerText = "anrichten";
+    damageButton.addEventListener('click', () => {
+        const troop = troops[troopSelect.value];
+        const damage = parseInt(document.getElementById("damage").value);
+        if (damage < 0) {
+            troop.healDamage(-damage);
+            return;
+        }
+        const ignoreRS = document.getElementById("ignoreRS").checked;
+        troop.takeDamage(damage, {
+            damage: {
+                isTrue: ignoreRS
+            }
+        });
+
+    });
+    container.appendChild(damageButton);
+
+    return container;
+
+}
+
+function ImageEditor() {
+    const container = document.createElement('div');
+    container.className = "two-column";
+    const imageTitle = document.createElement('h2');
+    imageTitle.className = "span-2";
+    imageTitle.innerText = "Hintergrundbild";
+    container.appendChild(imageTitle);
+
+    const images = stateManager.getState("images");
+    const currentImage = stateManager.getState("config.bgImage");
+
+    const selectLabel = document.createElement('label');
+    selectLabel.htmlFor = "image-select";
+    selectLabel.innerText = "Bild";
+    container.appendChild(selectLabel);
+
+    const imageSelect = document.createElement('select');
+    imageSelect.id = "image-select";
+    imageSelect.size = 1;
+    const noImageOption = document.createElement('option');
+    noImageOption.value = "undefined";
+    noImageOption.innerText = "Kein Bild";
+    noImageOption.selected = !currentImage;
+    imageSelect.appendChild(noImageOption);
+    images.forEach((image, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.innerText = image;
+        option.selected = image === currentImage;
+        imageSelect.appendChild(option);
+    });
+    container.appendChild(imageSelect);
+
+    imageSelect.addEventListener('change', (event) => {
+        if (event.target.value === "undefined") {
+            stateManager.updateState("config.bgImage", undefined);
+        } else {
+            stateManager.updateState("config.bgImage", images[event.target.value]);
+        }
+    });
+
+    generateInput("Breite", "image-width", stateManager.getState("config.bgImageGridSquares"), (e) => { stateManager.updateState("config.bgImageGridSquares", Math.max(1, parseInt(e.target.value))) }, container, 'number');
+    generateInput("X-Offset", "image-x", stateManager.getState("config.bgImageX"), (e) => { stateManager.updateState("config.bgImageX", parseInt(e.target.value)) }, container, 'number');
+    generateInput("Y-Offset", "image-y", stateManager.getState("config.bgImageY"), (e) => { stateManager.updateState("config.bgImageY", parseInt(e.target.value)) }, container, 'number');
+
+    return container;
+}
+
+function TimelineSettingsEditor() {
+    const container = document.createElement('div');
+
+    container.className = "two-column";
+    const settingsTitle = document.createElement('h2');
+    settingsTitle.className = "span-2";
+    settingsTitle.innerText = "Timeline-Einstellungen";
+    container.appendChild(settingsTitle);
+    generateInput("Aktionen pro Block", "actionsPerBlock", stateManager.getState("config.actionBlockSize"), (e) => { stateManager.updateState("config.actionBlockSize", parseInt(e.target.value)) }, container, "number");
+    generateInput("Pause zwischen Aktionen (ms)", "actionDelay", stateManager.getState("config.actionDelay"), (e) => { stateManager.updateState("config.actionDelay", parseInt(e.target.value)) }, container, "number");
+
+    return container;
+}
+
 function AdminPanel() {
     const container = document.createElement('div');
     container.className = "admin-panel";
     container.appendChild(WeaponEditor());
     container.appendChild(ConditionEditor());
+    container.appendChild(RollPanel());
+    container.appendChild(PartyEditor());
+    container.appendChild(ImageEditor());
+    container.appendChild(TimelineSettingsEditor());
     return container;
 }
 

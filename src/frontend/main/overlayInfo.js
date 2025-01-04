@@ -8,18 +8,31 @@ const stateContainer = document.createElement('div');
 stateContainer.className = 'state-container';
 overlay.appendChild(stateContainer);
 // Create a div for each piece of information we want to display and add it to the overlay
-const currentToken = document.createElement('p');
-stateContainer.appendChild(currentToken);
+// Well, actually, scratch that, haha. I'm just going to use a single p element for now.
+const overlayDisplay = document.createElement('p');
+stateContainer.appendChild(overlayDisplay);
 
 const updateOverlay = (gamestate) => {
-    // Update the current token div if any token is selected
+    // Baba booey
+    let overlayText = `Runde ${gamestate.round} (${gamestate.phase})`;
+    /*if (gamestate.state) {
+        overlayText += ` - ${gamestate.state}`;
+    }
+    if (gamestate.activeEntity) {
+        overlayText += ` - Aktive Einheit: ${gamestate.activeEntity}`;
+    }
     if (gamestate.selectedToken) {
-        currentToken.textContent = `Runde ${gamestate.round} (${gamestate.phase}) - ${gamestate.activeTroop} - ${gamestate.selectedToken}`;
-    } 
+        overlayText += ` - Ausgewählte Einheit: ${gamestate.selectedToken}`;
+    }*/
+    if (gamestate.display) {
+        overlayText += `<br>${gamestate.display}`;
+    }
+    overlayDisplay.innerHTML = overlayText;
+    
 }
 
 // Listen for updates to the gamestate
 const stateManager = require('@electron/remote').getGlobal('stateManager');
 stateManager.subscribe("gamestate", updateOverlay);
 
-currentToken.textContent = `Runde ${stateManager.getState("gamestate.round")} (${stateManager.getState("gamestate.phase")}) - ${stateManager.getState("gamestate.activeTroop")} - ${stateManager.getState("gamestate.selectedToken")}`;
+updateOverlay(stateManager.getState("gamestate"));

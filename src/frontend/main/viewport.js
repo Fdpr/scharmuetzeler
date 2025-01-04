@@ -1,7 +1,14 @@
+/**
+ * This script is responsible for creating and managing the viewport for the game.
+ * It uses d3.js to create an SVG element and draw tokens on it.
+ * It listens for updates to the gamestate and updates the viewport accordingly.
+ * It also sends events to the ActionManager when tokens are clicked or double-clicked.
+ */
 const path = require('path');
 const message = notificationManager.message;
 
-stateManager.subscribe('config', setUp);
+stateManager.subscribe('config', newConfig => setUp(newConfig));
+
 stateManager.subscribe("tokens", (tokens) => drawTokens(d3.select("#content"), tokens));
 
 // Define variables for grid.
@@ -17,9 +24,9 @@ let styleSheet = null;
 /**
  * Basic setup for SVG. Gets called everytime the workspace changes. sets up grid, background and interactivity.
  */
-function setUp() {
+function setUp(newConfig) {
     console.log("Setting up viewport");
-    config = stateManager.getState("config");
+    config = newConfig ? newConfig : stateManager.getState("config");
 
     const svg = d3.select('svg')
     svg.html(''); // Clear the SVG
@@ -40,10 +47,12 @@ function setUp() {
 
             const bgImg = await d3.image(path.join(config.workspace, config.bgImage))
 
-
-            const scaling = bgImg.width / (config.bgImageGridSquares * gridSize);
+            const scaling = (config.bgImageGridSquares * gridSize) / bgImg.width;
             const bgWidth = bgImg.width * scaling;
             const bgHeight = bgImg.height * scaling;
+
+            const xOff = config.bgImageX || 0;
+            const yOff = config.bgImageY || 0;
 
 
             // Set background image
@@ -51,14 +60,17 @@ function setUp() {
                 .attr('xlink:href', config.workspace + '/' + config.bgImage)
                 .attr('width', bgWidth)
                 .attr('height', bgHeight)
+                .attr('x', xOff - bgWidth / 2)
+                .attr('y', yOff - bgHeight / 2);
 
 
             function updateBg(zoomEvent) {
                 bg
-                    .attr('width', bgWidth * zoomEvent.transform.k)
-                    .attr('height', bgHeight * zoomEvent.transform.k)
-                    .attr('x', zoomEvent.transform.x)
-                    .attr('y', zoomEvent.transform.y);
+                    .attr("transform", zoomEvent.transform)
+                    //.attr('width', bgWidth * zoomEvent.transform.k)
+                    //.attr('height', bgHeight * zoomEvent.transform.k)
+                    //.attr('x', zoomEvent.transform.x)
+                    //.attr('y', zoomEvent.transform.y);
             }
         } else {
             function updateBg(zoomEvent) { return }
@@ -125,17 +137,19 @@ function setUp() {
 
         // Put content to the front
         content.raise();
+        drawTokens(d3.select("#content"), stateManager.getState("tokens"));
     });
 }
 
 function drawTokens(selection, tokens) {
+    tokens.forEach(t => t.update());
     const tokenGroup = selection.selectAll('g.token')
     tokenGroup
         .data(tokens.map(t => ({ ...t, label: t.text() })), d => d.name) // Bind data by a unique ID or other unique property
         .join(
             enter => {
                 const g = enter.append('g')
-                    .attr('class', 'token')
+                    .attr('class', d => d.classes)
                     .attr('transform', d => `translate(${d.x}, ${d.y})`)
                     .attr("token-id", d => d.name);
 
@@ -143,6 +157,7 @@ function drawTokens(selection, tokens) {
                 g.append('clipPath')
                     .attr('id', (d, i) => `clip-${i}`)
                     .append('circle')
+                    .attr("class", "clip-circle")
                     .attr('r', d => d.radius);
 
                 g.append('image')
@@ -177,27 +192,68 @@ function drawTokens(selection, tokens) {
                 g.call(d3.drag()
                     .on('start', function (event, d) {
                         d3.select(this).raise().classed('active', true);
+                        // Square drag line and shoot range
+                        const length = d.radius + gridSize * (d.type === "troop" ? stateManager.getTroop(d.name).get("GS") : stateManager.getLeader(d.name).get("GS"));
+                        d3.select("#content").append("rect")
+                            .attr("id", "drag-line")
+                            .attr("x", d.x - length)
+                            .attr("y", d.y - length)
+                            .attr("width", length * 2)
+                            .attr("height", length * 2)
+                            .attr("stroke", "red")
+                            .attr("stroke-width", 3)
+                            .attr("fill", "none");
+                        let shootRange = gridSize * (d.type === "troop" ? stateManager.getTroop(d.name).get("reach") : 0);
+                        shootRange = shootRange > 1 ? shootRange : 0;
+                        d3.select("#content").append("rect")
+                            .attr("id", "shoot-range")
+                            .attr("x", d.x - shootRange)
+                            .attr("y", d.y - shootRange)
+                            .attr("width", shootRange * 2)
+                            .attr("height", shootRange * 2)
+                            .attr("stroke", "blue")
+                            .attr("stroke-width", 3)
+                            .attr("fill", "none");
+                        /*
+                        // Circle drag line and shoot range
                         d3.select("#content").append('circle')
                             .attr("id", "drag-line")
                             .attr("cx", d.x)
                             .attr("cy", d.y)
-                            .attr("r", gridSize * (d.type === "troop" ? stateManager.getTroop(d.name).get("GS") : stateManager.getLeader(d.name).get("GS")))
+                            .attr("r", () => {
+                                return d.radius + gridSize * (d.type === "troop" ? stateManager.getTroop(d.name).get("GS") : stateManager.getLeader(d.name).get("GS"))
+                            })
                             .attr("stroke", "red")
                             .attr("stroke-width", 3)
                             .attr("fill", "none");
+                        let shootRange = gridSize * (d.type === "troop" ? stateManager.getTroop(d.name).get("reach") : 0);
+                        shootRange = shootRange > 1 ? shootRange : 0;
+                        d3.select("#content").append('circle')
+                            .attr("id", "shoot-range")
+                            .attr("cx", d.x)
+                            .attr("cy", d.y)
+                            .attr("r", shootRange)
+                            .attr("stroke", "blue")
+                            .attr("stroke-width", 3)
+                            .attr("fill", "none");
+                        */
                     })
                     .on('drag', function (event, d) {
-                        d.x = event.x;
-                        d.y = event.y;
+                        d.x = Math.round(event.x);
+                        d.y = Math.round(event.y);
                         d3.select(this).attr('transform', d => `translate(${d.x}, ${d.y})`);
                     })
                     .on('end', function (event, d) {
                         d3.select(this).classed('active', false);
+                        const token = stateManager.getToken(d.name);
+                        token.x = d.x;
+                        token.y = d.y;
+                        stateManager.addToken(token.toJSON());
                         d3.select("#drag-line").remove();
+                        d3.select("#shoot-range").remove();
                     }));
 
                 // Forward relevant token events to Action Manager
-
 
                 g.on("dblclick", function (event, d) {
                     actionManager.doubleClickToken(d.name);
@@ -207,17 +263,29 @@ function drawTokens(selection, tokens) {
             },
             update => {
                 update
+                    .attr('class', d => d.classes) // Update class
+                    .classed('selected', d => actionManager.gamestate.selectedToken === d.name) // Update selection
+                update
                     .transition().delay(200).duration(1000)
                     .attr('transform', d => `translate(${d.x}, ${d.y})`)
 
+                update.select(".clip-circle")
+                    .attr('r', d => d.radius);
+
                 update.select(".token-circle")
                     .attr('fill-opacity', d => d.image ? "0" : "1") // Default fill
+                    .attr('r', d => d.radius)
 
                 update.select("text")
                     .text(d => d.label || '')
+                    .attr('y', d => d.radius + 5) // Position below the circle
 
                 update.select("image")
                     .attr('xlink:href', d => d.image ? path.join(config.workspace, d.image) : '')
+                    .attr('x', d => -d.radius) // Center the image
+                    .attr('y', d => -d.radius)
+                    .attr('height', d => d.radius * 2)
+                    .attr('width', d => d.radius * 2)
 
 
                 return update;

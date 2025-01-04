@@ -4,7 +4,20 @@ const stateManager = require('@electron/remote').getGlobal('stateManager');
 const notificationManager = require('@electron/remote').getGlobal('notificationManager');
 const actionManager = require('@electron/remote').getGlobal('actionManager');
 
+const { ipcRenderer } = require('electron');
 
+// You can now send alerts to the main window. Isn't that neat?
+window.addEventListener('DOMContentLoaded', () => {
+    ipcRenderer.on('alert', (_event, message) => {
+        window.alert(message);
+    });
+})
+
+
+
+document.addEventListener("mousedown", (event) => {
+    actionManager.selectToken("");
+}, true);
 
 // Update current mouse coordinates for screen-based actions
 document.addEventListener('mousemove', (event) => {
@@ -46,6 +59,7 @@ function spawnHoverMenu(options) {
     // Create callback to remove the menu 
     actionManager.registerHoverMenuRemoval(() => {
         document.body.removeChild(menu);
+        actionManager.registerHoverMenuRemoval(() => {});
     });
 }
 actionManager.registerHoverMenuCallback(spawnHoverMenu);

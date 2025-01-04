@@ -10,33 +10,65 @@ class StateManager {
             config: {
                 workspace: "",
                 bgImage: "",
+                bgImageX: 0,
+                bgImageY: 0,
                 bgImageGridSquares: 30,
                 styleSheet: "style.css",
+                parties: [],
+                actionDelay: 250,
+                actionBlockSize: 3,
             },
             gamestate: {
                 round: 0,
-                phase: "Setup", // Setup, Manöverphase, Kampfphase
-                state: "FREE", // FREE, TARGET-SELECT, MULTI-SELECT, PAUSED
-                actionQueue: [],
-                activeTroop: "",
-                selectedToken: "",
+                /*
+                Setup (Only in round 0, parties can be added), 
+                Manöverphase, 
+                Kampfphase (Select new actions for each troop), 
+                Kampfphase [Defaults] (default actions are filled in and the gamemaster can still rearrange them),
+                Kampfphase [Ausführung] (actions are being performed),
+                Kampfphase [unterbrochen] (some action cannot be performed and the gamemaster needs to replace it),
+                Kampfphase [Ende] (all actions have been performed and the round is over),
+                */
+                phase: "Setup",
+                /*
+                FREE (Nothing is happening right now and everybody is free to do anything), 
+                SELECT (Select targets for current action), 
+                PAUSE (action is over and the gamemaster needs to input some stuff manually),
+                REPLACE (The game is halted and the gamemaster needs to replace an action during the action phase) 
+                */
+                state: "FREE",
+                maneuverQueue: [], // List of maneuvers that have been performed this round
+                actionMap: {}, // One action list for each party where actions are queued up before being performed
+                actionQueue: [], // Actions by each party get merged into here for performing during the action phase
+                actionIndex: 0, // Index of the current action in the actionQueue
+                activeEntity: "", // Entity that is currently active (E.g. performing an action)
+                selectedToken: "", // Entity that is currently selected (E.g. for targeting)
+                display: "", // An extra message to display during pauses (e.g. "Select a target")
             },
 
             // non-persistent state
-            mousePos: { x: 0, y: 0 },
-            images: [],
+            mousePos: { x: 0, y: 0 }, // Current mouse position (used for hover menus)
+            images: [], // List of all images in the workspace (//TODO: Currently only loaded on workspace change)
 
             // state in current timeframe
             troops: [],
             leaders: [],
             tokens: [],
+            log: [],
 
             // things that can be added to troops (configured globally)
             conditions: [],
             weapons: [],
 
-            history: [],
-            log: [],
+            // history of all completed past rounds
+            history: [
+                {
+                    troops: [],
+                    leaders: [],
+                    tokens: [],
+                    log: [],
+                }
+            ],
         };
     }
 
@@ -57,10 +89,22 @@ class StateManager {
             const config = { ...this.state.config, ...state.config };
             config.workspace = workspace;
             this.updateState('config', config);
-            if (state.weapons) this.updateState("weapons", state.weapons.map(Weapon.fromJSON));
-            if (state.tokens) this.updateState('tokens', state.tokens.map(Token.fromJSON));
+            if (state.gamestate) this.updateState('gamestate', { ...this.state.gamestate, ...state.gamestate });
             if (state.troops) this.updateState('troops', state.troops.map(Troop.fromJSON));
             if (state.leaders) this.updateState('leaders', state.leaders.map(Leader.fromJSON));
+            if (state.tokens) this.updateState('tokens', state.tokens.map(Token.fromJSON));
+            if (state.log) this.updateState('log', state.log);
+
+            if (state.conditions) this.updateState("conditions", state.conditions);
+            if (state.weapons) this.updateState("weapons", state.weapons.map(Weapon.fromJSON));
+
+            if (state.history) this.updateState('history', state.history.map(round => ({
+                ...round,
+                troops: round.troops.map(Troop.fromJSON),
+                leaders: round.leaders.map(Leader.fromJSON),
+                tokens: round.tokens.map(Token.fromJSON),
+            })));
+
         }
         this.updateState("images", global.fileManager.getImageFiles());
     }
@@ -69,20 +113,31 @@ class StateManager {
      * save the current workspace (either override state.json or create a new one)
      */
     saveWorkspace(overrideState) {
+        if (this.state.gamestate.state === "SELECT") {
+            global.mainWindow.webContents.send('alert', "Während der Auswahlphase kann der Spielstand nicht gespeichert werden!");
+            return;
+        }
         const state = {
             config: this.state.config,
             gamestate: this.state.gamestate,
             troops: this.state.troops.map(troop => troop.toJSON()),
             leaders: this.state.leaders.map(leader => leader.toJSON()),
             tokens: this.state.tokens.map(token => token.toJSON()),
+            log: this.state.log,
+
             conditions: this.state.conditions,
             weapons: this.state.weapons.map(weapon => weapon.toJSON()),
-            history: this.state.history,
-            log: this.state.log,
+
+            history: this.state.history.map(round => ({
+                ...round,
+                troops: round.troops.map(troop => troop.toJSON()),
+                leaders: round.leaders.map(leader => leader.toJSON()),
+                tokens: round.tokens.map(token => token.toJSON()),
+            })),
         }
         const timeString = new Date().toISOString().replace(/[:.]/g, '-');
         global.fileManager.writeJSON(overrideState ? 'state.json' : `state-${timeString.slice(2, timeString.length - 8)}.json`, state);
-
+        global.mainWindow.webContents.send('alert', "Spielstand gespeichert!");
     }
 
     /**
@@ -107,6 +162,27 @@ class StateManager {
     }
 
     /**
+     * Adds a token to the current timeframe (should only be used to update existing tokens, otherwise it will have no reference to a troop/leader)
+     */
+    addToken(token) {
+        token = Token.fromJSON(token);
+        this.updateState('tokens', [...this.state.tokens.filter(t => t.name !== token.name), token]);
+    }
+
+    /**
+     * Removes a token from the current timeframe. Makes sure that it gets removed as active Entity if it is the current one
+     */
+    deleteToken(name) {
+        this.updateState('tokens', this.state.tokens.filter(t => t.name !== name));
+        if (this.state.gamestate.activeEntity === name) {
+            this.updateState('gamestate.activeEntity', "");
+        }
+        if (this.state.gamestate.selectedToken === name) {
+            this.updateState('gamestate.selectedToken', "");
+        }
+    }
+
+    /**
      * Adds a troop to the current timeframe with its token, replacing any existing troop with the same name
      * @param {Troop} troop Troop object serialized to JSON
      * @param {Token} token Token object serialized to JSON
@@ -119,12 +195,13 @@ class StateManager {
         this.updateState('tokens', [...this.state.tokens.filter(t => t.name !== token.name), token]);
     }
 
+
     /**
      * Deletes a troop from the current timeframe
      */
     deleteTroop(name) {
         this.updateState('troops', this.state.troops.filter(troop => troop.name !== name));
-        this.updateState('tokens', this.state.tokens.filter(token => token.name !== name));
+        this.deleteToken(name);
     }
 
     /**
@@ -144,7 +221,7 @@ class StateManager {
      */
     deleteLeader(name) {
         this.updateState('leaders', this.state.leaders.filter(leader => leader.name !== name));
-        this.updateState('tokens', this.state.tokens.filter(token => token.name !== name));
+        this.deleteToken(name);
     }
 
     /**
@@ -160,6 +237,36 @@ class StateManager {
      */
     deleteWeapon(index) {
         this.updateState('weapons', this.state.weapons.filter((_weapon, i) => i !== index));
+    }
+
+    /**
+     * Adds a log 
+     */
+    addLog(log) {
+        this.updateState('log', [...this.state.log, log]);
+    }
+
+    /**
+     * Copies the current timeframe to the history at the given round
+     */
+    setHistory(round) {
+        const history = [...this.state.history];
+        history[round - 1] = {
+            troops: this.state.troops.map(troop => troop.copy()),
+            leaders: this.state.leaders.map(leader => leader.copy()),
+            tokens: this.state.tokens.map(token => token.copy()),
+            log: [...this.state.log],
+        };
+        if (history.length === round) {
+            history.push({
+                troops: [],
+                leaders: [],
+                tokens: [],
+                log: [],
+            });
+        }
+        this.updateState('history', history) // TODO: Is this a bug?.slice(0, round));
+        this.updateState('log', []);
     }
 
     /**
@@ -192,7 +299,7 @@ class StateManager {
 
     notifyListeners(path, value) {
         if (this.listeners.has(path)) {
-            console.log(`Notifying listeners for ${path}`);
+            // console.log(`Notifying listeners for ${path}`);
             this.listeners.get(path).forEach(callback => callback(value));
         }
     }

@@ -1,5 +1,6 @@
 const { roll, check } = require("../util/rolling");
 const { getGlobal } = require("../util/process");
+const { chebyshevDistance } = require("../util/spatial");
 
 const Weapon = require("./weapon");
 const { applyAllConditions } = require("./conditions");
@@ -15,7 +16,7 @@ function getStateManager() {
 class Troop {
     constructor(name, party, ref, EK, anzahl, big, shield, RTM, GSBasis, GSRitt, MaxLP, RSBasis, ATBasis, PABasis, FKBasis, MOBasis, AUBasis, INIBasis, actionCount, maneuverCount, weapons, properties,
         // These parameters only need to be passed if the Troop is constructed mid-combat
-        LP, MO, MOImmun, ErsP, RegP, Ini, weapon, isMelee, meleeCounter, meleeTarget, parryCounter, isRange, nachladen, rangeTarget, isMove, isPlaenkeln, isSchildwall, isPikenwall, mods, conditions, immunities, leader) {
+        LP, MO, MOImmun, ErsP, RegP, Ini, weapon, isMelee, meleeCounter, meleeTarget, parryCounter, isRange, nachladen, rangeTarget, isRapidFire, rapidFireCounter, isMove, isPlaenkeln, isSchildwall, isPikenwall, mods, conditions, immunities, leader) {
 
         // static fields
         // THESE SHOULD NEVER CHANGE I THINK
@@ -62,7 +63,7 @@ class Troop {
         this.weapon = parseInt(weapon) || 0;
 
         // flags
-        this.isMelee = Boolean(isMelee) || false; // was in melee combat this round (should not rely on this value, always check if meleeTarget is set, too)
+        this.isMelee = Boolean(isMelee) || false; // was in melee combat this round (should not rely on this value, always check if meleeTarget is set, too, or use isInMelee() instead)
         this.meleeCounter = parseInt(meleeCounter) || 0;
         this.meleeTarget = meleeTarget || ""; // last target of a melee attack for calculating next attack (removed when disengaged)
         this.parryCounter = parseInt(parryCounter) || 0; // counts the number of parries done this round
@@ -70,6 +71,8 @@ class Troop {
         this.isRange = Boolean(isRange) || false; // has made a ranged attack this round
         this.nachladen = parseInt(nachladen) || 0; // rounds until next shot is ready
         this.rangeTarget = rangeTarget || ""; // last target of a ranged attack for calculating next attack (removed when disengaged)
+        this.isRapidFire = Boolean(isRapidFire) || false; // was in rapid fire mode this round
+        this.rapidFireCounter = parseInt(rapidFireCounter) || 0; // counts the number of shots done this round
 
         this.isMove = Boolean(isMove) || false; // was moving this round
         this.isPlaenkeln = Boolean(isPlaenkeln) || false;
@@ -78,7 +81,7 @@ class Troop {
 
 
         // mods and stuff
-        const baseMods = { EK: 0, AT: 0, PA: 0, FK: 0, TP: 0, MO: 0, RS: 0, GS: 0, AU: 0 };
+        const baseMods = { EK: 0, AT: 0, PA: 0, FK: 0, TP: 0, MO: 0, RS: 0, GS: 0, AU: 0, actionCount: 0, maneuverCount: 0, EKAction: 0 };
         if (mods) {
             this.mods = { ...baseMods, ...mods };
         } else {
@@ -94,20 +97,24 @@ class Troop {
     /**
      * Returns a deep copy of the troop
     */
-    static copyFrom(troop) {
+    static copyFrom(troop, fresh = false) {
+        if (fresh) return new Troop
+            (troop.name, troop.party, troop.ref, troop.EK, troop.anzahl, troop.big, troop.shield, troop.RTM, troop.GSBasis, troop.GSRitt, troop.MaxLP, troop.RSBasis, troop.ATBasis, troop.PABasis, troop.FKBasis, troop.MOBasis, troop.AUBasis, troop.INIBasis, troop.actionCount, troop.maneuverCount, troop.weapons.map(weapon => Weapon.copyFrom(weapon)), troop.properties,
+                null, null, null, null, null, null, troop.weapon);
+
         return new Troop
             (troop.name, troop.party, troop.ref, troop.EK, troop.anzahl, troop.big, troop.shield, troop.RTM, troop.GSBasis, troop.GSRitt, troop.MaxLP, troop.RSBasis, troop.ATBasis, troop.PABasis, troop.FKBasis, troop.MOBasis, troop.AUBasis, troop.INIBasis, troop.actionCount, troop.maneuverCount, troop.weapons.map(weapon => Weapon.copyFrom(weapon)), troop.properties,
-                troop.LP, troop.MO, troop.MOimmun, troop.ErsP, troop.RegP, troop.Ini, troop.weapon, troop.isMelee, troop.meleeCounter, troop.meleeTarget, troop.parryCounter, troop.isRange, troop.nachladen, troop.rangeTarget, troop.isMove, troop.isPlaenkeln, troop.isSchildwall, troop.isPikenwall, troop.mods, troop.conditions, troop.immunities, troop.leader);
+                troop.LP, troop.MO, troop.MOimmun, troop.ErsP, troop.RegP, troop.Ini, troop.weapon, troop.isMelee, troop.meleeCounter, troop.meleeTarget, troop.parryCounter, troop.isRange, troop.nachladen, troop.rangeTarget, troop.isRapidFire, troop.rapidFireCounter, troop.isMove, troop.isPlaenkeln, troop.isSchildwall, troop.isPikenwall, troop.mods, troop.conditions, troop.immunities, troop.leader);
     }
 
-    copy() {
-        return Troop.copyFrom(this);
+    copy(fresh = false) {
+        return Troop.copyFrom(this, fresh);
     }
 
     static fromJSON(json) {
         return new Troop
             (json.name, json.party, json.ref, json.EK, json.anzahl, json.big, json.shield, json.RTM, json.GSBasis, json.GSRitt, json.MaxLP, json.RSBasis, json.ATBasis, json.PABasis, json.FKBasis, json.MOBasis, json.AUBasis, json.INIBasis, json.actionCount, json.maneuverCount, json.weapons.map(weapon => Weapon.fromJSON(weapon)), json.properties,
-                json.LP, json.MO, json.MOimmun, json.ErsP, json.RegP, json.Ini, json.weapon, json.isMelee, json.meleeCounter, json.meleeTarget, json.parryCounter, json.isRange, json.nachladen, json.rangeTarget, json.isMove, json.isPlaenkeln, json.isSchildwall, json.isPikenwall, json.mods, json.conditions, json.immunities, json.leader);
+                json.LP, json.MO, json.MOimmun, json.ErsP, json.RegP, json.Ini, json.weapon, json.isMelee, json.meleeCounter, json.meleeTarget, json.parryCounter, json.isRange, json.nachladen, json.rangeTarget, json.isRapidFire, json.rapidFireCounter, json.isMove, json.isPlaenkeln, json.isSchildwall, json.isPikenwall, json.mods, json.conditions, json.immunities, json.leader);
     }
 
     toJSON() {
@@ -159,8 +166,33 @@ class Troop {
         };
     }
 
+    /**
+     * Add new weapon to the troop
+     */
+    addWeapon(weapon) {
+        this.weapons.push(weapon);
+    }
+
+    /**
+     * Remove weapon by name.
+     * If after removal the current weapon is not in the list anymore, the first weapon is selected.
+     */
+    removeWeapon(name) {
+        const currentWeapon = this.getCurrentWeapon();
+        this.weapons = this.weapons.filter(w => w.name !== name);
+        if (this.weapons.includes(currentWeapon)) {
+            this.weapon = this.weapons.indexOf(currentWeapon);
+        } else {
+            this.weapon = 0;
+        }
+    }
+
+    getCurrentWeapon() {
+        return this.weapons[this.weapon];
+    }
+
     doDamage() {
-        return this.weapons[this.weapon].damage() + this.get("TP");
+        return this.getCurrentWeapon().damage() + this.get("TP");
     }
 
     healLP(amount) {
@@ -191,6 +223,7 @@ class Troop {
     }
 
     healExhaustion(amount) {
+        if (this.ErsP === 0 && !(this.hasCondition("a") || this.hasCondition("e") || this.hasCondition("s"))) return false;
         if (this.ErsP >= amount) this.ErsP -= amount;
         else if (this.ErsP === 0) this.RegP += amount;
         else {
@@ -198,19 +231,63 @@ class Troop {
             this.ErsP = 0;
             this.RegP += rest;
         }
+        return true;
     }
 
-    takeDamage(damage) {
-        let trueDamage = this.hasCondition("g") ? (damage - this.get("RS")) / 2 : damage - this.get("RS")
-        this.LP -= Math.max(0, trueDamage);
-        if (this.LP / this.MaxLP < 0.5) {
+    healDamage(amount) {
+        this.LP = Math.min(this.MaxLP, this.LP + amount);
+        if (this.LP / this.MaxLP < 0.25) {
+            if (!this.hasCondition("g")) {
+                this.addCondition("g", "Geringe LE", -1);
+                this.removeCondition("n");
+            }
+        } else if (this.LP / this.MaxLP < 0.5 && !this.hasCondition("n")) {
             this.addCondition("n", "Niedrige LE", -1);
-        } else if (this.LP / this.MaxLP < 0.25) {
-            this.addCondition("g", "Geringe LE", -1);
-            this.removeCondition("n");
-        } else if (this.LP <= 0) {
-            // TODO: handle death
         }
+    }
+
+    takeDamage(damage, context = {}) {
+        let trueDamage = damage;
+        // Ranged attacks with more than 7 damage and EK < 7
+        if (context.attack && context.attack.isRange && (damage > 7 + this.get("EK"))) {
+            this.addCondition("x", "Schock", 1);
+            this.doMoralProbe();
+        }
+        if (this.hasCondition("g")) trueDamage = Math.ceil(damage / 2);
+        if (this.isPlaenkeln) {
+            if (context.attack && (context.attack.isLance || context.attack.isCharge || context.attack.isFlank)) {
+                trueDamage *= 2;
+            } else {
+                trueDamage = Math.ceil(trueDamage / 2);
+            }
+        }
+        // Check if armor should be applied
+        if (!context.damage || !context.damage.isTrue) trueDamage = Math.max(0, trueDamage - this.get("RS", context));
+        else trueDamage = Math.max(0, trueDamage);
+
+        // If the attacker is in "Ausfall" this round, the troop needs to perform a morale check
+        if (trueDamage && context.attacker && context.attacker.hasCondition("au")) {
+            this.doMoralProbe();
+        }
+        this.LP -= trueDamage;
+        if (this.LP <= 0) {
+            message(`${this.name} ist tot!`);
+            const stateManager = getGlobal("stateManager");
+            stateManager.getState("troops").forEach(troop => {
+                troop.removeTarget(this.name);
+            })
+            stateManager.getState("leaders").forEach(leader => {
+                leader.removeTarget(this.name);
+            });
+        } else if (this.LP / this.MaxLP < 0.25) {
+            if (!this.hasCondition("g")) {
+                this.addCondition("g", "Geringe LE", -1);
+                this.removeCondition("n");
+            }
+        } else if (this.LP / this.MaxLP < 0.5 && !this.hasCondition("n")) {
+            this.addCondition("n", "Niedrige LE", -1);
+        }
+        return trueDamage;
     }
 
     /**
@@ -226,12 +303,22 @@ class Troop {
      * @param {number} modifier the modifier to apply to the roll (negative for advantage, positive for disadvantage)
      * @param {object} context additional context for the roll
      */
-    roll(stat, modifier, context = {}) {
+    roll(stat, context = {}, modifier = 0) {
+        if (stat === "AT" && this.hasCondition("l") && context.defender && this.getCondition("l").focus !== context.defender.name) this.doMoralProbe();
+
         if (stat === "AT" || stat === "PA") this.isMelee = true;
-        else if (stat === "FK") this.isRange = true;
+        else if (stat === "FK") {
+            this.isRange = true;
+            if (context.attack && context.attack.isRapidFire) this.isRapidFire = true;
+        }
 
         if (stat === "PA") {
-            const res = check(this.get("PA", context) - (modifier + this.parryCounter * (6 - this.get("EK", context) / 2)));
+            if (context.attacker && context.attacker.isBig && !this.shield) return false; // Attacks from large enemies
+            if (context.attack && context.attack.isLance && !this.isPikenwall) return false; // Attacks from Lanzenangriffs
+            if (context.attack && context.attack.isRange && !(this.shield || this.hasCondition("d"))) return false; // Ranged attacks
+
+            const multiPenalty = this.isSchildwall ? 0 : this.parryCounter * (6 - (this.get("EK", context) / 2))
+            const res = check(this.get("PA", context) - (modifier + multiPenalty));
             this.parryCounter++;
             return res;
         }
@@ -254,27 +341,33 @@ class Troop {
             case "RS":
             case "AU":
             case "GS":
+            case "actionCount":
+            case "maneuverCount":
                 let basis;
                 switch (stat) {
                     case "EK":
                         basis = this.EK;
                         break;
                     case "AT":
-                        basis = this.ATBasis + this.weapons[this.weapon].ATMod + this.get("EK");
+                        basis = this.ATBasis + this.getCurrentWeapon().ATMod + this.get("EK");
+                        if (this.isSchildwall) basis -= 4;
                         break;
                     case "PA":
-                        basis = this.PABasis + this.weapons[this.weapon].PAMod + this.get("EK");
+                        basis = this.PABasis + this.getCurrentWeapon().PAMod + this.get("EK");
+                        if (this.isSchildwall) basis += 4;
                         break;
                     case "FK":
-                        basis = this.FKBasis + this.weapons[this.weapon].FKMod + this.get("EK");
+                        basis = this.FKBasis + this.getCurrentWeapon().FKMod + this.get("EK");
+                        if (this.isSchildwall) basis -= 2;
                         break;
                     case "TP":
-                        basis = this.get("EK")
+                        basis = this.get("EK");
+                        break;
                     case "MO":
-                        basis = this.MOBasis;
+                        basis = this.MO;
                         break;
                     case "RS":
-                        basis = this.RSBasis;
+                        basis = Math.ceil((this.RSBasis + this.get("EK")) / 2);
                         break;
                     case "AU":
                         basis = this.AUBasis;
@@ -282,18 +375,84 @@ class Troop {
                     case "GS":
                         basis = this.RTM == 2 ? this.GSBasis + this.GSRitt : this.GSBasis;
                         break;
+                    case "actionCount":
+                    case "maneuverCount":
+                        basis = this[stat];
+                        break;
                     default:
                         basis = 0;
+                        break;
                 }
-                return Math.max(basis
-                    + this.mods[stat]
-                    + applyAllConditions(this.conditions.map(c => c.key), stat, context)
-                    + (this.leader ? getStateManager().getLeader(this.leader).get(stat) : 0),
-                    0);
+                let res = basis
+                res += this.mods[stat]
+                res += applyAllConditions(this.conditions.map(c => c.key), stat, context)
+                if (this.leader) res += getStateManager().getLeader(this.leader).getBonus(stat)
+                res = Math.max(0, res)
+                if (stat === "PA" && context.attack && context.attack.isRange) return Math.ceil(res / 2);
+                return res;
+            case "EKAction":
+                const leaderBonus = this.leader ? 999 : 0;
+                return leaderBonus + this.get("EK") + this.mods["EKAction"] + applyAllConditions(this.conditions.map(c => c.key), "EKAction", context);
+            case "reach":
+                return this.getCurrentWeapon().reach;
+            case "nachladen":
+                return this.nachladen;
             default:
                 return this[stat];
         }
 
+    }
+
+    resetNachladen() {
+        if (this.getCurrentWeapon().nachladen) this.nachladen = this.getCurrentWeapon().nachladen;
+        else this.nachladen = 0;
+    }
+
+    canAttackRange(troop) {
+        const stateManager = getGlobal("stateManager");
+        const ref = stateManager.getToken(this.ref);
+        const targetTroop = stateManager.getTroop(troop);
+        if (!targetTroop.isAlive()) return false;
+        const target = stateManager.getToken(targetTroop.ref);
+        return chebyshevDistance(ref, target) <= (this.get("reach") + 0.5) * 100;
+    }
+
+    /** 
+     * Checks if the troop can attack a target in melee combat
+     * */
+    canAttackMelee(troop) {
+        const stateManager = getGlobal("stateManager");
+        const ref = stateManager.getToken(this.ref);
+        const targetTroop = stateManager.getTroop(troop);
+        if (!targetTroop.isAlive()) return false;
+        const target = stateManager.getToken(targetTroop.ref);
+        if (this.isPlaenkeln) return chebyshevDistance(ref, target) < (2.5 * 100);
+        else return chebyshevDistance(ref, target) < (1.5 * 100);
+    }
+
+    /**
+     * Checks if the troop is in melee combat right now. This is necessary because the isMelee flag is not reliable
+     * Used for actions and maneuver that depend on whether the troop is in melee combat at this current moment
+     * 
+     * Checks if the troop has an active melee target near or is targeted by a melee troop nearby.
+     * Near here means Manhattan distance of less than 1.5
+     */
+    isInMelee() {
+        if (this.meleeTarget && this.canAttackMelee(this.meleeTarget)) return true;
+        const stateManager = getGlobal("stateManager");
+        const ref = stateManager.getToken(this.ref);
+        for (const troop of stateManager.getState("troops")) {
+            if (troop.isAlive() && troop.meleeTarget === this.name) {
+                const target = stateManager.getToken(troop.ref);
+                if (chebyshevDistance(ref, target) < (1.5 * 100)) return true;
+            }
+        }
+        return false;
+    }
+
+
+    isAlive() {
+        return this.LP > 0;
     }
 
     /**
@@ -317,6 +476,30 @@ class Troop {
      * Adds a condition to the troop
      */
     addCondition(key, name, duration, rest) {
+        // Check for immunities
+        if (this.hasImmunity(key)) return false;
+        // Pikenwall cannot get shock
+        if (key === "x" && this.isPikenwall) return false;
+        // Troops with shields or under cover cannot get barraged
+        if (key === "u" && (this.shield || this.hasCondition("d"))) return false;
+        if (key === "d") this.removeCondition("u");
+        // Very low health removes low health and vice versa
+        if (key === "n") this.removeCondition("g");
+        if (key === "g") this.removeCondition("n");
+        // Similar for exhaust levels
+        if (key === "a") {
+            this.removeCondition("e");
+            this.removeCondition("s");
+        }
+        if (key === "e") {
+            this.removeCondition("a");
+            this.removeCondition("s");
+        }
+        if (key === "s") {
+            this.removeCondition("a");
+            this.removeCondition("e");
+        }
+
         const has = this.conditions.find(c => c.key === key);
         if (!has) {
             this.conditions.push({ key: key, name: name, counter: duration, ...rest });
@@ -327,10 +510,10 @@ class Troop {
                 has.counter = -1;
                 message(`${this.name} hat den Zustand ${name} nun unbegrenzt lang.`);
             }
-            if (has.counter >= duration || has.counter === -1) return;
+            if (has.counter >= duration || has.counter === -1) return false;
             message(`${this.name} hat den Zustand ${name} nun noch weitere ${duration - has.counter} Runden lang.`);
             has.counter = duration;
-            return false;
+            return true;
         }
     }
 
@@ -383,6 +566,15 @@ class Troop {
             message(`${this.name} ist nun nicht mehr gegen ${key} immun.`);
     }
 
+    setMeleeTarget(target) {
+        this.meleeTarget = target;
+        this.rangeTarget = "";
+    }
+
+    setRangeTarget(target) {
+        this.rangeTarget = target;
+        this.meleeTarget = "";
+    }
 
     /**
      * Removes a target so the troop stops automatically attacking it next round
@@ -390,6 +582,36 @@ class Troop {
     removeTarget(target) {
         if (this.meleeTarget === target) this.meleeTarget = null;
         if (this.rangeTarget === target) this.rangeTarget = null;
+    }
+
+    /**
+     * Gets the default action of this troop
+     */
+    getDefaultAction() {
+        const action = {
+            name: "Defensivposition",
+            type: "action",
+            entity: this.name,
+            targets: [],
+        }
+        if (this.meleeTarget && this.get("reach") < 2) {
+            action.name = "Angriff",
+                action.targets = [this.meleeTarget]
+        }
+        else if (this.rangeTarget && this.get("reach") >= 2) {
+            action.name = "Fernkampf",
+                action.targets = [this.rangeTarget]
+        }
+        return action;
+    }
+
+    /**
+     * Does some cleanup that happens before the troop's first maneuver
+     */
+    handleFirstManeuver() {
+        this.isPlaenkeln = false;
+        this.isSchildwall = false;
+        this.isPikenwall = false;
     }
 
     /**
@@ -406,6 +628,12 @@ class Troop {
      */
     handleEndOfRound() {
         this.parryCounter = 0;
+
+        // Advance rapid fire counter
+        if (this.isRapidFire)
+            this.rapidFireCounter++;
+        else
+            this.rapidFireCounter = 0;
 
         // Advance melee counter
         if (this.isMelee)
@@ -440,20 +668,25 @@ class Troop {
             if (this.mods[key] > 0) this.mods[key]--;
             if (this.mods[key] < 0) this.mods[key]++;
         });
+
         // set TP modifier to 0
         this.mods.TP = 0;
+        // Reset any boosts to EK
+        this.mods.EKAction = 0;
 
         // reset flags
         this.isMelee = false;
         this.isMove = false;
         this.isRange = false;
+        this.isRapidFire = false;
+        this.leader = "";
     }
 
     /**
      * Rolls for exhaustion and exhaust troop if necessary.
      */
-    doAusdauerProbe() {
-        if (!this.roll("AU", (Math.max(0, this.ErsP - this.get("AU"))))) {
+    doAusdauerProbe(modifier = 0) {
+        if (!this.roll("AU", {}, Math.max(0, this.ErsP - this.get("AU")) + modifier)) {
             this.ErsP = 0;
             if (this.hasCondition("s")) {
                 this.LP = Math.trunc(this.LP / 2);
@@ -466,17 +699,19 @@ class Troop {
             } else {
                 this.addCondition("a", "außer Atem", -1);
             }
+            return false;
         }
+        return true;
     }
 
     /**
      * Rolls for Moral and handles failure
      */
-    doMoralProbe() {
+    doMoralProbe(modifier = 0) {
         const moralRoll = roll(20);
         const aktMO = this.get("MO");
-        if (moralRoll > aktMO) {
-            if (moralRoll > aktMO * 2) {
+        if ((moralRoll + modifier) > aktMO) {
+            if ((moralRoll + modifier) > (aktMO * 2)) {
                 if (this.MOimmun > 0) {
                     this.MOimmun--;
                 } else {
@@ -485,15 +720,16 @@ class Troop {
             } else {
                 this.MO = Math.max(1, Math.trunc(aktMO / 2));
             }
-
+            return false;
         }
+        return true;
     }
 
     /**
      * Rolls for Regeneration and regenerates troop if necessary.
      */
-    doRegenerationsProbe() {
-        if (this.roll("AU", 10 - this.RegP)) {
+    doRegenerationsProbe(modifier = 0) {
+        if (this.roll("AU", {}, Math.min(10 - this.RegP, 0) + modifier)) {
             this.RegP = 0;
             if (this.hasCondition("s")) {
                 this.removeCondition("s");
@@ -504,8 +740,9 @@ class Troop {
             } else {
                 this.removeCondition("a");
             }
+            return true;
         }
-
+        return false;
     }
 
 }

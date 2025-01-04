@@ -1,6 +1,6 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('node:path');
-const isDev = import('electron-is-dev');
+const isDev = false //import('electron-is-dev');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -15,18 +15,31 @@ const FileManager = require('./backend/FileManager');
 const ActionManager = require('./backend/ActionManager');
 
 // Initialize services
-global.notificationManager = new NotificationManager();
 global.stateManager = new StateManager();
+global.notificationManager = new NotificationManager(global.stateManager);
 global.fileManager = new FileManager();
 global.actionManager = new ActionManager(global.stateManager, global.notificationManager);
 global.mainWindow = null;
 global.adminWindow = null;
+global.isDev = isDev;
+
+const timelineUpdate = (payload) => {
+  if (global.adminWindow) {
+    global.adminWindow.webContents.send('signal', { 
+      type: "timelineReload",
+      data: payload});
+  }
+}
+global.stateManager.subscribe("gamestate.maneuverQueue", (maneuverQueue) => { timelineUpdate() });
+global.stateManager.subscribe("gamestate.actionMap", (actionMap) => { timelineUpdate() });
+global.stateManager.subscribe("gamestate.actionQueue", (actionQueue) => { timelineUpdate(actionQueue) });
 
 const createMainWindow = () => {
   // Create the browser window.
   global.mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    icon: __dirname + '/favicon.ico',
 
     webPreferences: {
       nodeIntegration: true,    // Allows direct Node.js access
@@ -39,7 +52,7 @@ const createMainWindow = () => {
   require("@electron/remote/main").enable(global.mainWindow.webContents);
 
   global.mainWindow.loadFile(path.join(__dirname, 'frontend', 'index.html'));
-  global.mainWindow.webContents.openDevTools();
+  if (isDev) global.mainWindow.webContents.openDevTools();
 
   // Global function to manage admin window
   global.openAdminWindow = function (signal) {
@@ -55,6 +68,7 @@ const createMainWindow = () => {
       width: 800,
       height: 600,
       autoHideMenuBar: true,
+      icon: __dirname + '/favicon.ico',
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: false,
@@ -65,7 +79,7 @@ const createMainWindow = () => {
     require("@electron/remote/main").enable(global.adminWindow.webContents)
 
     global.adminWindow.loadFile(path.join(__dirname, 'frontend', 'admin.html'));
-    global.adminWindow.webContents.openDevTools();
+    if (isDev) global.adminWindow.webContents.openDevTools();
     global.adminWindow.webContents.on('did-finish-load', () => {
       if (signal) {
         global.adminWindow.webContents.send('signal', signal);
@@ -114,11 +128,19 @@ app.whenReady().then(() => {
     },
     {
       label: 'Timeline-Editor',
-      click: () => global.openAdminWindow()
+      click: () => global.openAdminWindow({ type: "timeline" })
+    },
+    {
+      label: 'Übersicht',
+      click: () => global.openAdminWindow({ type: "overview" })
+    },
+    {
+      label: "Dev-Tools",
+      click: () => global.mainWindow.webContents.openDevTools()
     },
     {
       label: 'Fortsetzen',
-      click: () => global.stateManager.updateState("tokens", global.stateManager.getState("tokens"))
+      click: () => global.actionManager.continue()
     }
   ];
   const menu = Menu.buildFromTemplate(template);
@@ -126,10 +148,10 @@ app.whenReady().then(() => {
 
   // Check if app is in development mode and set Workspace to test folder
   if (isDev) {
-    setTimeout(() => {
+    // setTimeout(() => {
       console.log("Development mode detected. Setting workspace to test folder.");
       global.stateManager.setWorkspace(path.join(app.getPath("documents"), "scharmuetzeler", 'test'))
-    }, 500);
+    // }, 500);
   }
 });
 

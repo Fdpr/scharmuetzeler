@@ -1,3 +1,5 @@
+const { getGlobal } = require("../util/process");
+
 class Token {
     constructor(name, ref, type, radius, x, y, image, label) {
         this.name = name;
@@ -12,19 +14,20 @@ class Token {
     }
 
     /**
-     * Refreshes the token's display and classes
+     * Refreshes the token's classes
      */
     update() {
         const ref = this.type === "troop" ? stateManager.getTroop(this.ref) : stateManager.getLeader(this.ref);
         if (!ref) {
-            message("Troop / Leader not found: " + this.ref + "!");
+            getGlobal("notificationManager").message("Troop / Leader not found: " + this.ref + "!");
             return;
         }
         this.classes = [
             "token",
             "type-" + this.type,
-            "party-" + myTroop.party,
+            "party-" + ref.party,
             ...this.type === "troop" ? ref.conditions.map(condition => "condition-" + condition.key) : [],
+            ...ref.isAlive() ? [] : ["dead"]
         ].join(" ");
         return this;
     }
@@ -32,7 +35,11 @@ class Token {
     text() {
         const ref = this.type === "troop" ? stateManager.getTroop(this.ref) : stateManager.getLeader(this.ref);
         // Replace all %<stat> with the corresponding stat from the troop/leader
-        return this.label.replace(/<([a-zA-Z]+)>/g, (match, p1) => ref.get(p1) || match);
+        return this.label.replace(/<([a-zA-Z]+)>/g, (match, p1) => {
+            const res = ref.get(p1);
+            if (res || res === 0) return res;
+            return match;
+        });
     }
 
 
@@ -41,7 +48,7 @@ class Token {
     }
 
     static copyFrom(token) {
-        return new Token(token.name, token.ref, json.type, json.radius, token.x, token.y, token.image, token.label);
+        return new Token(token.name, token.ref, token.type, token.radius, token.x, token.y, token.image, token.label);
     }
 
     toJSON() {

@@ -16,5 +16,4 @@ const addPopup = (message) => {
     }, 1500);
 }
 
-const notificationManager = require('@electron/remote').getGlobal('notificationManager');
-notificationManager.register(addPopup);
+require('@electron/remote').getGlobal('notificationManager').register(addPopup);
