@@ -26,7 +26,7 @@ function PartyOverview(party, troops) {
             `${troop.get("ErsP")}/${troop.get("RegP")}`,
             troop.conditions.map(c => c.key).join(", "),
             troop.get("reach") <= 1 ? `${troop.get("AT")}/${troop.get("PA")}` : troop.get("FK"),
-            troop.getCurrentWeapon().name,
+            `${troop.getCurrentWeapon().name} ${troop.get("shield") ? "(Schild)" : ""}`,
             troop.get("GS"),
             troop.get("RS")
         ];
@@ -61,7 +61,6 @@ function OverviewPanel() {
     const parties = stateManager.getState("config.parties");
     const troops = stateManager.getState("troops");
     parties.forEach(party => {
-        console.log(party, troops)
         container.appendChild(PartyOverview(party, troops));
     });
     container.appendChild(LogDisplay());

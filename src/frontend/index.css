@@ -197,3 +197,7 @@ tr {
 .lightRow {
   background-color: white;
 }
+
+.selectedRow {
+  background-color: lightblue;
+}

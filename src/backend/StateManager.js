@@ -14,7 +14,7 @@ class StateManager {
                 bgImageY: 0,
                 bgImageGridSquares: 30,
                 styleSheet: "style.css",
-                parties: [],
+                parties: ["Partei"],
                 actionDelay: 250,
                 actionBlockSize: 3,
             },
@@ -44,11 +44,20 @@ class StateManager {
                 activeEntity: "", // Entity that is currently active (E.g. performing an action)
                 selectedToken: "", // Entity that is currently selected (E.g. for targeting)
                 display: "", // An extra message to display during pauses (e.g. "Select a target")
+                backInTime: false, // Indicates if we are stepping back in time (means to ignore transition calls between phases)
             },
 
             // non-persistent state
             mousePos: { x: 0, y: 0 }, // Current mouse position (used for hover menus)
             images: [], // List of all images in the workspace (//TODO: Currently only loaded on workspace change)
+            // Remembers the last selected action in the timeline editor. Makes it persist between refreshes
+            timelineSelect: {
+                party: "",
+                index: 0,
+            },
+
+            // Undo stack for undoing maneuvers
+            undoStack: [],
 
             // state in current timeframe
             troops: [],
@@ -104,6 +113,12 @@ class StateManager {
                 leaders: round.leaders.map(Leader.fromJSON),
                 tokens: round.tokens.map(Token.fromJSON),
             })));
+            if (state.undoStack) this.updateState('undoStack', state.undoStack.map(frame => ({
+                troops: frame.troops.map(Troop.fromJSON),
+                leaders: frame.leaders.map(Leader.fromJSON),
+                tokens: frame.tokens.map(Token.fromJSON),
+                log: [...frame.log],
+            })));
 
         }
         this.updateState("images", global.fileManager.getImageFiles());
@@ -112,7 +127,7 @@ class StateManager {
     /**
      * save the current workspace (either override state.json or create a new one)
      */
-    saveWorkspace(overrideState) {
+    saveWorkspace(overrideState, silent) {
         if (this.state.gamestate.state === "SELECT") {
             global.mainWindow.webContents.send('alert', "Während der Auswahlphase kann der Spielstand nicht gespeichert werden!");
             return;
@@ -134,10 +149,17 @@ class StateManager {
                 leaders: round.leaders.map(leader => leader.toJSON()),
                 tokens: round.tokens.map(token => token.toJSON()),
             })),
+
+            undoStack: this.state.undoStack.map(frame => ({
+                troops: frame.troops.map(troop => troop.toJSON()),
+                leaders: frame.leaders.map(leader => leader.toJSON()),
+                tokens: frame.tokens.map(token => token.toJSON()),
+                log: [...frame.log],
+            })),
         }
         const timeString = new Date().toISOString().replace(/[:.]/g, '-');
         global.fileManager.writeJSON(overrideState ? 'state.json' : `state-${timeString.slice(2, timeString.length - 8)}.json`, state);
-        global.mainWindow.webContents.send('alert', "Spielstand gespeichert!");
+        if (!silent) global.mainWindow.webContents.send('alert', "Spielstand gespeichert!");
     }
 
     /**
@@ -247,6 +269,57 @@ class StateManager {
     }
 
     /**
+     * Swaps two actions of a given party in the action map. Used for rearranging actions during the action phase.
+     */
+    swapActions(party, index1, index2) {
+        const actionMap = { ...this.state.gamestate.actionMap };
+        const actions = [...actionMap[party]];
+        if ((index1 < 0 || index2 < 0) || (index1 >= actions.length || index2 >= actions.length)) return;
+        [actions[index1], actions[index2]] = [actions[index2], actions[index1]];
+        actionMap[party] = actions;
+        this.updateState('gamestate.actionMap', actionMap);
+    }
+
+    /**
+     * Deletes an action from a given party in the action map. Used for removing actions during the action phase.
+     */
+    deleteAction(party, index) {
+        const actionMap = { ...this.state.gamestate.actionMap };
+        actionMap[party] = actionMap[party].filter((_action, i) => i !== index);
+        this.updateState('gamestate.actionMap', actionMap);
+    }
+
+    /**
+     * Copies the current timeframe to the undo stack
+     */
+    pushUndo() {
+        this.state.undoStack.push({
+            troops: this.state.troops.map(troop => troop.copy()),
+            leaders: this.state.leaders.map(leader => leader.copy()),
+            tokens: this.state.tokens.map(token => token.copy()),
+            log: [...this.state.log],
+        });
+    }
+
+    /**
+     * Pops the last timeframe from the undo stack and replaces the current timeframe with it
+     * Returns true if successful, false if the stack is empty
+     */
+    popUndo() {
+        if (this.state.undoStack.length < 2) return false;
+        this.state.undoStack.pop();
+        const lastFrame = this.state.undoStack[this.state.undoStack.length - 1];
+        this.updateState('troops', lastFrame.troops.map(troop => troop.copy()));
+        this.updateState('leaders', lastFrame.leaders.map(leader => leader.copy()));
+        this.updateState('tokens', lastFrame.tokens.map(token => token.copy()));
+        this.updateState('log', [...lastFrame.log]);
+        // Remove last entry from the maneuverQueue
+        this.updateState('gamestate.maneuverQueue', this.state.gamestate.maneuverQueue.slice(0, -1));
+        return true;
+    }
+
+
+    /**
      * Copies the current timeframe to the history at the given round
      */
     setHistory(round) {
@@ -285,6 +358,14 @@ class StateManager {
         }
         current[parts[0]] = value;
         this.notifyListeners(path, value);
+    }
+
+    /**
+     * Sometimes, the listeners need to be called manually (e.g. after a change that doesn't trigger a listener)
+     * This is mostly used for the frontend to update the display after a change (i.e. trigger a re-render by refreshing tokens)
+     */
+    refresh(path) {
+        this.notifyListeners(path, this.getState(path));
     }
 
     subscribe(path, callback) {

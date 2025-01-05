@@ -14,7 +14,7 @@ function getStateManager() {
 }
 
 class Troop {
-    constructor(name, party, ref, EK, anzahl, big, shield, RTM, GSBasis, GSRitt, MaxLP, RSBasis, ATBasis, PABasis, FKBasis, MOBasis, AUBasis, INIBasis, actionCount, maneuverCount, weapons, properties,
+    constructor(name, party, ref, EK, anzahl, big, RTM, GSBasis, GSRitt, MaxLP, RSBasis, ATBasis, PABasis, FKBasis, MOBasis, AUBasis, INIBasis, actionCount, maneuverCount, weapons, properties,
         // These parameters only need to be passed if the Troop is constructed mid-combat
         LP, MO, MOImmun, ErsP, RegP, Ini, weapon, isMelee, meleeCounter, meleeTarget, parryCounter, isRange, nachladen, rangeTarget, isRapidFire, rapidFireCounter, isMove, isPlaenkeln, isSchildwall, isPikenwall, mods, conditions, immunities, leader) {
 
@@ -26,7 +26,6 @@ class Troop {
         this.EK = parseInt(EK);
         this.anzahl = parseInt(anzahl);
         this.big = Boolean(big) || false;
-        this.shield = Boolean(shield) || false;
         this.RTM = parseInt(RTM);
         this.GSBasis = parseInt(GSBasis);
         this.GSRitt = parseInt(GSRitt);
@@ -99,11 +98,11 @@ class Troop {
     */
     static copyFrom(troop, fresh = false) {
         if (fresh) return new Troop
-            (troop.name, troop.party, troop.ref, troop.EK, troop.anzahl, troop.big, troop.shield, troop.RTM, troop.GSBasis, troop.GSRitt, troop.MaxLP, troop.RSBasis, troop.ATBasis, troop.PABasis, troop.FKBasis, troop.MOBasis, troop.AUBasis, troop.INIBasis, troop.actionCount, troop.maneuverCount, troop.weapons.map(weapon => Weapon.copyFrom(weapon)), troop.properties,
+            (troop.name, troop.party, troop.ref, troop.EK, troop.anzahl, troop.big, troop.RTM, troop.GSBasis, troop.GSRitt, troop.MaxLP, troop.RSBasis, troop.ATBasis, troop.PABasis, troop.FKBasis, troop.MOBasis, troop.AUBasis, troop.INIBasis, troop.actionCount, troop.maneuverCount, troop.weapons.map(weapon => Weapon.copyFrom(weapon)), troop.properties,
                 null, null, null, null, null, null, troop.weapon);
 
         return new Troop
-            (troop.name, troop.party, troop.ref, troop.EK, troop.anzahl, troop.big, troop.shield, troop.RTM, troop.GSBasis, troop.GSRitt, troop.MaxLP, troop.RSBasis, troop.ATBasis, troop.PABasis, troop.FKBasis, troop.MOBasis, troop.AUBasis, troop.INIBasis, troop.actionCount, troop.maneuverCount, troop.weapons.map(weapon => Weapon.copyFrom(weapon)), troop.properties,
+            (troop.name, troop.party, troop.ref, troop.EK, troop.anzahl, troop.big, troop.RTM, troop.GSBasis, troop.GSRitt, troop.MaxLP, troop.RSBasis, troop.ATBasis, troop.PABasis, troop.FKBasis, troop.MOBasis, troop.AUBasis, troop.INIBasis, troop.actionCount, troop.maneuverCount, troop.weapons.map(weapon => Weapon.copyFrom(weapon)), troop.properties,
                 troop.LP, troop.MO, troop.MOimmun, troop.ErsP, troop.RegP, troop.Ini, troop.weapon, troop.isMelee, troop.meleeCounter, troop.meleeTarget, troop.parryCounter, troop.isRange, troop.nachladen, troop.rangeTarget, troop.isRapidFire, troop.rapidFireCounter, troop.isMove, troop.isPlaenkeln, troop.isSchildwall, troop.isPikenwall, troop.mods, troop.conditions, troop.immunities, troop.leader);
     }
 
@@ -113,7 +112,7 @@ class Troop {
 
     static fromJSON(json) {
         return new Troop
-            (json.name, json.party, json.ref, json.EK, json.anzahl, json.big, json.shield, json.RTM, json.GSBasis, json.GSRitt, json.MaxLP, json.RSBasis, json.ATBasis, json.PABasis, json.FKBasis, json.MOBasis, json.AUBasis, json.INIBasis, json.actionCount, json.maneuverCount, json.weapons.map(weapon => Weapon.fromJSON(weapon)), json.properties,
+            (json.name, json.party, json.ref, json.EK, json.anzahl, json.big, json.RTM, json.GSBasis, json.GSRitt, json.MaxLP, json.RSBasis, json.ATBasis, json.PABasis, json.FKBasis, json.MOBasis, json.AUBasis, json.INIBasis, json.actionCount, json.maneuverCount, json.weapons.map(weapon => Weapon.fromJSON(weapon)), json.properties,
                 json.LP, json.MO, json.MOimmun, json.ErsP, json.RegP, json.Ini, json.weapon, json.isMelee, json.meleeCounter, json.meleeTarget, json.parryCounter, json.isRange, json.nachladen, json.rangeTarget, json.isRapidFire, json.rapidFireCounter, json.isMove, json.isPlaenkeln, json.isSchildwall, json.isPikenwall, json.mods, json.conditions, json.immunities, json.leader);
     }
 
@@ -125,7 +124,6 @@ class Troop {
             EK: this.EK,
             anzahl: this.anzahl,
             big: this.big,
-            shield: this.shield,
             RTM: this.RTM,
             GSBasis: this.GSBasis,
             GSRitt: this.GSRitt,
@@ -313,9 +311,9 @@ class Troop {
         }
 
         if (stat === "PA") {
-            if (context.attacker && context.attacker.isBig && !this.shield) return false; // Attacks from large enemies
+            if (context.attacker && context.attacker.isBig && !this.get("shield")) return false; // Attacks from large enemies
             if (context.attack && context.attack.isLance && !this.isPikenwall) return false; // Attacks from Lanzenangriffs
-            if (context.attack && context.attack.isRange && !(this.shield || this.hasCondition("d"))) return false; // Ranged attacks
+            if (context.attack && context.attack.isRange && !(this.get("shield") || this.hasCondition("d"))) return false; // Ranged attacks
 
             const multiPenalty = this.isSchildwall ? 0 : this.parryCounter * (6 - (this.get("EK", context) / 2))
             const res = check(this.get("PA", context) - (modifier + multiPenalty));
@@ -393,6 +391,8 @@ class Troop {
             case "EKAction":
                 const leaderBonus = this.leader ? 999 : 0;
                 return leaderBonus + this.get("EK") + this.mods["EKAction"] + applyAllConditions(this.conditions.map(c => c.key), "EKAction", context);
+            case "shield":
+                return this.getCurrentWeapon().shield;
             case "reach":
                 return this.getCurrentWeapon().reach;
             case "nachladen":
@@ -409,12 +409,22 @@ class Troop {
     }
 
     canAttackRange(troop) {
+        return this.getRangePenalty(troop) < this.get("FK");
+    }
+
+    getRangePenalty(troop) {
         const stateManager = getGlobal("stateManager");
         const ref = stateManager.getToken(this.ref);
-        const targetTroop = stateManager.getTroop(troop);
-        if (!targetTroop.isAlive()) return false;
-        const target = stateManager.getToken(targetTroop.ref);
-        return chebyshevDistance(ref, target) <= (this.get("reach") + 0.5) * 100;
+        const target = stateManager.getTroop(troop);
+        const targetRef = stateManager.getToken(target.ref);
+        const distance = Math.ceil(chebyshevDistance(ref, targetRef) / 100 - .2);
+        const reach = this.get("reach");
+        let penalty = Math.min(distance, reach) - 2;
+        if (distance > reach) {
+            const diff = distance - reach;
+            penalty += Math.pow(2, diff + 1) - 2;
+        }
+        return penalty;
     }
 
     /** 
@@ -426,8 +436,8 @@ class Troop {
         const targetTroop = stateManager.getTroop(troop);
         if (!targetTroop.isAlive()) return false;
         const target = stateManager.getToken(targetTroop.ref);
-        if (this.isPlaenkeln) return chebyshevDistance(ref, target) < (2.5 * 100);
-        else return chebyshevDistance(ref, target) < (1.5 * 100);
+        if (this.isPlaenkeln) return chebyshevDistance(ref, target) < (2.2 * 100);
+        else return chebyshevDistance(ref, target) < (1.2 * 100);
     }
 
     /**
@@ -481,7 +491,7 @@ class Troop {
         // Pikenwall cannot get shock
         if (key === "x" && this.isPikenwall) return false;
         // Troops with shields or under cover cannot get barraged
-        if (key === "u" && (this.shield || this.hasCondition("d"))) return false;
+        if (key === "u" && (this.get("shield") || this.hasCondition("d"))) return false;
         if (key === "d") this.removeCondition("u");
         // Very low health removes low health and vice versa
         if (key === "n") this.removeCondition("g");

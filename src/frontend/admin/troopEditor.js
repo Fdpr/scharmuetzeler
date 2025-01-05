@@ -99,7 +99,7 @@ function generateWeaponOptions(troop, select) {
         option.selected = index === troop.weapon;
         option.value = index;
         option.innerText = weapon.reach <= 1 ?
-            `${weapon.name}, ${weapon.TPString()} TP, AT/PA: ${weapon.ATMod}/${weapon.PAMod}`
+            `${weapon.name} ${weapon.shield ? "(Schild)" : ""}, ${weapon.TPString()} TP, AT/PA: ${weapon.ATMod}/${weapon.PAMod}`
             : `${weapon.name}, ${weapon.TPString()} TP, FK: ${weapon.FKMod}, Reichweite: ${weapon.reach}, Nachladen: ${weapon.nachladen} Runden`;
         select.appendChild(option);
     });
@@ -140,8 +140,8 @@ function TroopEditor(troop) {
     const editMode = troop !== undefined;
     let token;
     if (!troop) {
-        troop = new Troop("Truppe", stateManager.getState("config.parties")[0], "Truppe", 3, 50, false, false, 1, 2, 0, 150, 3, 12, 12, 12, 10, 13, 12, 1, 1, [], [], [])
-        token = new Token("Truppe", "Truppe", "troop", 50, 0, 0, undefined, "<name>");
+        troop = new Troop("Truppe", stateManager.getState("config.parties")[0], "Truppe", 3, 50, false, 1, 2, 0, 150, 3, 12, 12, 12, 10, 13, 12, 1, 1, [], [], [])
+        token = new Token("Truppe", "Truppe", "troop", 40, 0, 0, undefined, "<name>");
     } else {
         troop = stateManager.getTroop(troop).copy();
         token = stateManager.getToken(troop.name).copy();
@@ -199,7 +199,6 @@ function TroopEditor(troop) {
     staticInfo.appendChild(partySelect);
     generateInput('Anzahl', 'troop-anzahl', troop.anzahl, e => troop.anzahl = parseInt(e.target.value), staticInfo, "number");
     generateInput('Großer Gegner', 'troop-big', troop.big, e => troop.big = e.target.checked, staticInfo, "checkbox");
-    generateInput('Schild', 'troop-shield', troop.shield, e => troop.shield = e.target.checked, staticInfo, "checkbox");
     generateInput('EK', 'troop-EK', troop.EK, e => troop.EK = parseInt(e.target.value), staticInfo, "number");
     generateInput('RTM', 'troop-RTM', troop.RTM, e => troop.RTM = parseInt(e.target.value), staticInfo, "number");
     generateInput('GSBasis', 'troop-GSBasis', troop.GSBasis, e => troop.GSBasis = parseInt(e.target.value), staticInfo, "number");
@@ -297,7 +296,7 @@ function TroopEditor(troop) {
     globalWeapons.forEach(weapon => {
         const option = document.createElement('option');
         option.innerText = weapon.reach <= 1 ?
-            `${weapon.name}, ${weapon.TPString()} TP, AT/PA: ${weapon.ATMod}/${weapon.PAMod}`
+            `${weapon.name} ${weapon.shield ? "(Schild)" : ""}, ${weapon.TPString()} TP, AT/PA: ${weapon.ATMod}/${weapon.PAMod}`
             : `${weapon.name}, ${weapon.TPString()} TP, FK: ${weapon.FKMod}, Reichweite: ${weapon.reach}, Nachladen: ${weapon.nachladen} Runden`;
         newWeaponSelect.appendChild(option);
     });
@@ -305,6 +304,7 @@ function TroopEditor(troop) {
     const weaponATMod = generateInput("AT-Mod", "troop-new-ATMod", 0, () => { }, weaponsInfo, "number");
     const weaponPAMod = generateInput("PA-Mod", "troop-new-PAMod", 0, () => { }, weaponsInfo, "number");
     const weaponFKMod = generateInput("FK-Mod", "troop-new-FKMod", 0, () => { }, weaponsInfo, "number");
+    const weaponShield = generateInput("Schild", "troop-new-shield", false, () => { }, weaponsInfo, "checkbox");
     const addWeaponButton = document.createElement('button');
     addWeaponButton.innerText = 'Hinzufügen';
     addWeaponButton.addEventListener('click', () => {
@@ -312,9 +312,23 @@ function TroopEditor(troop) {
         if (parseInt(weaponATMod.value)) weapon.ATMod += parseInt(weaponATMod.value);
         if (parseInt(weaponPAMod.value)) weapon.PAMod += parseInt(weaponPAMod.value);
         if (parseInt(weaponFKMod.value)) weapon.FKMod += parseInt(weaponFKMod.value);
+        weapon.shield = weaponShield.checked;
         troop.addWeapon(weapon);
         generateWeaponOptions(troop, weaponSelect);
     });
+
+    const weaponSelectHandler = (event) => {
+        const index = event.target.selectedIndex;
+        if (index === -1) return;
+        const weapon = globalWeapons[index];
+        weaponATMod.value = weapon.ATMod;
+        weaponPAMod.value = weapon.PAMod;
+        weaponFKMod.value = weapon.FKMod;
+        weaponShield.checked = weapon.shield;
+    };
+    weaponSelectHandler({ target: weaponSelect });
+
+    newWeaponSelect.addEventListener('change', weaponSelectHandler);
 
     weaponsInfo.appendChild(addWeaponButton);
 
@@ -536,7 +550,7 @@ function LeaderEditor(leader) {
     let token;
     if (!leader) {
         leader = new Leader("Anführer", stateManager.getState("config.parties")[0], "Anführer", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 5, 0, 30, 13, 4, 1, 5, 13, 13, 13, [])
-        token = new Token("Anführer", "Anführer", "leader", 30, 0, 0, undefined, "<name>");
+        token = new Token("Anführer", "Anführer", "leader", 20, 0, 0, undefined, "<name>");
     } else {
         leader = stateManager.getLeader(leader).copy();
         token = stateManager.getToken(leader.name).copy();

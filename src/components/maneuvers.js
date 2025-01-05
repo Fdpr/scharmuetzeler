@@ -62,9 +62,8 @@ const maneuvers = [
             troop.exhaust(3);
             troop.isMove = true;
             return {
-                pause: true,
+                pause: false,
                 log: [`${troop.name} läuft`],
-                display: `Bewege ${troop.name} um ${troop.get("GS")} Feld(er).`
             };
         }
     },
@@ -146,9 +145,8 @@ const maneuvers = [
         select: (troop) => ({ select: false }),
         perform: (troop, targets) => {
             return {
-                pause: true,
+                pause: false,
                 log: [`${troop.name} führt eine Meisteraktion aus.`],
-                display: `Wähle eine Meinsteraktion für ${troop.name}.`
             }
         }
     },
@@ -161,9 +159,8 @@ const maneuvers = [
             troop.isMove = true;
             troop.addCondition("sp", "Sprint", 1);
             return {
-                pause: true,
+                pause: false,
                 log: [`${troop.name} sprintet.`],
-                display: `Bewege ${troop.name} um ${troop.get("GS")} Feld(er).`
             };
         }
     },
@@ -371,7 +368,7 @@ const maneuvers = [
     },
     {
         name: "Schildwall",
-        check: (troop) => troop.get("EKAction") >= 3 && troop.shield && troop.get("RTM") === 1,
+        check: (troop) => troop.get("EKAction") >= 3 && troop.get("shield") && troop.get("RTM") === 1,
         select: (troop) => ({ select: false }),
         perform: (troop, targets) => {
             troop.exhaust(2);
@@ -577,7 +574,7 @@ const actions = [
     },
     {
         name: "Schnellschuss",
-        checkUntargeted: (troop) => troop.get("EKAction") >= 3 && troop.get("reach") > 1 && troop.getCurrentWeapon().nachladen < 3 && !(troop.hasCondition("e") || troop.hasCondition("s")),
+        checkUntargeted: (troop) => troop.get("EKAction") >= 3 && troop.get("reach") > 1 && troop.getCurrentWeapon().nachladen <= 4 && !(troop.hasCondition("e") || troop.hasCondition("s")),
         select: (troop) => ({
             select: true,
             max: 1,

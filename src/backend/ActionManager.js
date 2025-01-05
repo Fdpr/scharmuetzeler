@@ -62,7 +62,7 @@ class ActionManager {
                 this.stateManager.updateState("gamestate.activeEntity", "");
             setTimeout(() => {
                 if (!this.gamestate.selectedToken) {
-                    this.stateManager.updateState("tokens", this.stateManager.getState("tokens"));
+                    this.stateManager.refresh("tokens")
                 }
             }, 100);
             return;
@@ -152,6 +152,25 @@ class ActionManager {
                     type: "troop",
                     data: token.ref
                 })
+            }
+        }
+
+        // Save
+        else if (key === "s" && this.isKeyPressed["Control"]) {
+            this.stateManager.saveWorkspace(false);
+        }
+
+        // Undo
+        else if (key === "r") {
+            if (this.gamestate.state !== "FREE" || this.gamestate.phase === "Setup") return;
+            if (this.gamestate.phase === "Manöverphase") this.stateManager.popUndo();
+            if (this.gamestate.phase === "Kampfphase") {
+                this.stateManager.updateState("gamestate.backInTime", true);
+                this.stateManager.updateState("gamestate.phase", "Manöverphase");
+                this.stateManager.refresh("gamestate.maneuverQueue");
+            } if (this.gamestate.phase === "Kampfphase [Defaults]") {
+                this.stateManager.updateState("gamestate.phase", "Kampfphase");
+                this.stateManager.updateState("gameestate.display", "");
             }
         }
 
@@ -321,6 +340,7 @@ class ActionManager {
                 this.stateManager.updateState("gamestate.phase", "Manöverphase")
                 this.stateManager.updateState("gamestate.round", 1)
                 this.stateManager.updateState("gamestate.state", "FREE")
+                this.stateManager.pushUndo();
                 // Just to trigger the timeline panel to refresh
                 this.stateManager.updateState("gamestate.maneuverQueue", [])
             }
@@ -423,7 +443,8 @@ class ActionManager {
         const result = maneuver.perform(troop, this.currentAction.targets.map(target => this.stateManager.getTroop(target)));
         result.log.forEach(log => { if (log) this.notificationManager.message(log) });
         this.stateManager.updateState("gamestate.maneuverQueue", [...this.gamestate.maneuverQueue, { ...this.currentAction, log: result.log }]);
-        this.stateManager.updateState("tokens", this.stateManager.getState("tokens"));
+        this.stateManager.pushUndo();
+        this.stateManager.refresh("tokens")
         this.currentAction = {};
         if (result.pause)
             this.stateManager.updateState("gamestate.state", "PAUSE");
@@ -445,7 +466,8 @@ class ActionManager {
         const result = leaderAction.perform(leader, this.currentAction.targets.map(target => this.stateManager.getTroop(target)));
         result.log.forEach(log => { if (log) this.notificationManager.message(log) });
         this.stateManager.updateState("gamestate.maneuverQueue", [...this.gamestate.maneuverQueue, { ...this.currentAction, log: result.log }]);
-        this.stateManager.updateState("tokens", this.stateManager.getState("tokens"));
+        this.stateManager.pushUndo();
+        this.stateManager.refresh("tokens")
         this.currentAction = {};
         if (result.pause)
             this.stateManager.updateState("gamestate.state", "PAUSE");
@@ -509,7 +531,7 @@ class ActionManager {
         this.gamestate.actionQueue[this.gamestate.actionIndex] = action;
         this.stateManager.updateState("gamestate.actionQueue", [...this.gamestate.actionQueue]);
         this.stateManager.updateState("gamestate.actionIndex", this.gamestate.actionIndex + 1);
-        this.stateManager.updateState("tokens", this.stateManager.getState("tokens"));
+        this.stateManager.refresh("tokens");
         if (result.pause) {
             this.stateManager.updateState("gamestate.state", "PAUSE");
             this.stateManager.updateState("gamestate.display", result.display);
@@ -554,8 +576,9 @@ class ActionManager {
                 this.gamestate.activeEntity = troop.name;
                 this.performManeuver();
             }
-            troop.handleEndOfManeuver()
+            if (!this.gamestate.backInTime) troop.handleEndOfManeuver()
         });
+        this.stateManager.updateState("gamestate.backInTime", false);
         this.stateManager.updateState("gamestate.phase", "Kampfphase");
         this.stateManager.updateState("gamestate.state", "FREE");
         this.stateManager.updateState("gamestate.display", "");
@@ -585,10 +608,11 @@ class ActionManager {
         });
         const lastActionMap = this.gamestate.round > 1 ? this.stateManager.getState("history")[this.gamestate.round - 2].actionMap : null;
         parties.forEach(party => {
+            const mergedList = [...this.gamestate.actionMap[party], ...defaultMap[party]];
             if (lastActionMap) {
-                this.gamestate.actionMap[party] = [...this.gamestate.actionMap[party], ...neighborhoodSort(defaultMap[party], lastActionMap[party])];
+                this.gamestate.actionMap[party] = neighborhoodSort(mergedList, lastActionMap[party]);
             } else {
-                this.gamestate.actionMap[party] = [...this.gamestate.actionMap[party], ...defaultMap[party]];
+                this.gamestate.actionMap[party] = mergedList;
             }
         });
         this.stateManager.updateState("gamestate.actionMap", this.gamestate.actionMap);
@@ -634,6 +658,9 @@ class ActionManager {
         this.stateManager.updateState("gamestate.maneuverQueue", []);
         this.stateManager.updateState("gamestate.actionQueue", []);
         this.stateManager.updateState("gamestate.actionIndex", 0);
+        this.stateManager.updateState("undoStack", [])
+        this.stateManager.pushUndo();
+        this.stateManager.saveWorkspace(false, true);
 
         // TODO: Is this enough ???
     }

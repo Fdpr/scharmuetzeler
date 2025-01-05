@@ -1,0 +1,106 @@
+/*
+Set custom display properties of viewport here.
+This file is loaded after the default styles, so you can override them here.
+You can change these three first stylings if you want, but maybe don't.
+*/
+
+/* Background color of the viewport */
+svg {
+	background-color: white;
+}
+
+/* Grid color */
+#grid-pattern line {
+	stroke: #a4a4a4;
+	stroke-width: 2;
+}
+
+/* Basic styling for all tokens */
+.token circle {
+    stroke: green;
+    stroke-width: 3;
+	fill: gray;
+}
+
+/* Styling while token is being dragged */
+.token.active {
+    filter: brightness(1.4) saturate(1.5) contrast(1.2);
+}
+
+/* Text display. White text on fuzzy dark background */
+.token-label {
+	font-size: .75em;
+    fill: white;
+    stroke: black;
+    stroke-width: 3;
+    paint-order: stroke fill;
+    text-shadow:
+        1px 1px .5px rgb(42, 42, 61),
+        /* Soft dark outline */
+        -1px 1px .5px rgb(42, 42, 61),
+        /* Soft dark outline */
+        1px -1px .5px rgb(42, 42, 61),
+        /* Soft dark outline */
+        -1px -1px .5px rgb(42, 42, 61),
+        /* Soft dark outline */
+        0 0 3px rgb(42, 42, 61);
+    /* Additional glow for smoothing */
+}
+
+/* 
+    You can add more custom styles here.
+    Tokens have multiple classes:
+    - token: The base class for all tokens
+    - type-<type>: The type of the token (e.g. type-troop for troops, type-leader for leaders)
+    - party-<party>: The party of the token (this is the party name you assigned in the editor)
+    - condition-<condition>: Every condition a token has (e.g. condition-d for Deckung)
+    - active: When the token is being dragged
+	- selected: When the token is being selected (Choosing an action applies it to the selected token)
+    - dead: When the token is dead
+
+    To target the whole token, use just the class selector.
+    To target the outline or default fill color, select the circle element.
+    To target the image, select the image element.
+    To target the text, select the text element.
+	
+	You should add "transition: all .75s" to all dynamic 
+
+    Some examples below:
+*/
+
+/* Example: Outline the selected token golden */
+.token.selected circle {
+	filter: drop-shadow(1px 1px 0px gold) drop-shadow(-1px 1px 0px gold) drop-shadow(1px -1px 0px gold) drop-shadow(-1px -1px 0px gold) ;
+}
+
+/* Example: Change the outline color of all tokens in party Partei */
+.token.party-Partei circle {
+    stroke: red;
+	fill: red
+}
+
+/* Example: Give all leaders a golden outline */
+.token.type-leader circle {
+    stroke: gold;
+}
+
+/* Example: Change the text color of all tokens with low life */
+.token.condition-n text {
+    fill: yellow;
+}
+
+/* Example: Change the text color of all tokens with low life */
+.token.condition-g text {
+    fill: red;
+}
+
+/* Example: Make all dead tokens dark gray */
+.token.dead {
+    filter: grayscale(100%) brightness(.5);
+}
+
+/* Example: Blur tokens that have condition Deckung */
+.token.condition-d image, .token.condition-d circle {
+    filter: blur(5px);
+}
+

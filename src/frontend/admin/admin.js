@@ -10,9 +10,13 @@ const OverviewPanel = require('./admin/overviewPanel');
 const stateManager = require('@electron/remote').getGlobal('stateManager');
 
 var state = "";
+var lastKeyEvent = null;
 
 window.addEventListener('DOMContentLoaded', () => {
     ipcRenderer.on('signal', (_event, payload) => {
+        if (lastKeyEvent) {
+            document.removeEventListener('keydown', lastKeyEvent);
+        }
         if (payload.type === "troop") {
             state = "troop";
             document.title = "Truppen-Editor";

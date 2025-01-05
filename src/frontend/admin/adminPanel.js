@@ -18,7 +18,7 @@ function buildWeaponOptions(weapons, select, selected = 0) {
         }
         option.value = index;
         option.innerText = weapon.reach <= 1 ?
-            `${weapon.name}, ${weapon.TPString()} TP, AT/PA: ${weapon.ATMod}/${weapon.PAMod}`
+            `${weapon.name} ${weapon.shield ? "(Schild)" : ""}, ${weapon.TPString()} TP, AT/PA: ${weapon.ATMod}/${weapon.PAMod}`
             : `${weapon.name}, ${weapon.TPString()} TP, FK: ${weapon.FKMod}, Reichweite: ${weapon.reach}, Nachladen: ${weapon.nachladen} Runden`;
         select.appendChild(option);
     });
@@ -59,6 +59,7 @@ function WeaponEditor() {
     const weaponAT = generateInput("AT-Modifikator", "weapon-at", 0, () => { }, container, 'number');
     const weaponPA = generateInput("PA-Modifikator", "weapon-pa", 0, () => { }, container, 'number');
     const weaponFK = generateInput("FK-Modifikator", "weapon-fk", 0, () => { }, container, 'number');
+    const weaponShield = generateInput("Schild", "weapon-shield", false, () => { }, container, 'checkbox');
     const weaponReach = generateInput("Reichweite", "weapon-reach", 0, () => { }, container, 'number');
     const weaponNachladen = generateInput("Nachladen", "weapon-nachladen", 0, () => { }, container, 'number');
 
@@ -68,6 +69,7 @@ function WeaponEditor() {
         weaponAT.value = parseInt(weapons[event.target.value].ATMod);
         weaponPA.value = parseInt(weapons[event.target.value].PAMod);
         weaponFK.value = parseInt(weapons[event.target.value].FKMod);
+        weaponShield.checked = weapons[event.target.value].shield;
         weaponReach.value = parseInt(weapons[event.target.value].reach);
         weaponNachladen.value = parseInt(weapons[event.target.value].nachladen);
     });
@@ -81,6 +83,7 @@ function WeaponEditor() {
             parseInt(weaponAT.value),
             parseInt(weaponPA.value),
             parseInt(weaponFK.value),
+            weaponShield.checked,
             weaponTP.value,
             parseInt(weaponReach.value),
             parseInt(weaponNachladen.value)
@@ -330,8 +333,32 @@ function RollPanel() {
         }
 
         resultDisplay.innerText = result;
-        stateManager.updateState("tokens", stateManager.getState("tokens"));
+        stateManager.refresh("tokens")
     });
+
+    const valueHeader = document.createElement('p');
+    valueHeader.innerHTML = "<b>Aktuellen Wert anzeigen</b>";
+    valueHeader.className = "span-2";
+    container.appendChild(valueHeader);
+    const values = ["AT", "PA", "FK", "TP", "MO", "AU", "RS", "GS"];
+    const valueSelect = document.createElement('select');
+    valueSelect.size = 1;
+    values.forEach(value => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.innerText = value;
+        valueSelect.appendChild(option);
+    });
+    container.appendChild(valueSelect);
+    const valueDisplay = document.createElement('span');
+    valueDisplay.innerText = "Wert:";
+    container.appendChild(valueDisplay);
+    const valueChangeHandler = () => {
+        const troop = troops[troopSelect.value];
+        valueDisplay.innerText = troop.get(valueSelect.value);
+    }
+    valueChangeHandler();
+    valueSelect.addEventListener('change', valueChangeHandler);
 
     const damageHeader = document.createElement('p');
     damageHeader.innerHTML = "<b>Schaden anrichten</b>";

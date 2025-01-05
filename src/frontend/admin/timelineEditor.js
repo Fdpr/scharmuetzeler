@@ -123,7 +123,7 @@ function ManeuverTable() {
     return container;
 }
 
-function ActionMapTable(party, showFreeActions) {
+function ActionMapTable(party, showFreeActions, selectedAction) {
     const container = document.createElement('div');
     container.className = 'two-column';
     const title = document.createElement('h2');
@@ -135,7 +135,6 @@ function ActionMapTable(party, showFreeActions) {
     const actionBlockSize = stateManager.getState('config.actionBlockSize');
 
     const actionTable = document.createElement('table');
-    actionTable.className = 'span-2';
     const header = document.createElement('tr');
     const headers = ["Index", 'Einheit', 'Aktion', 'Ziele'];
     headers.forEach(headerText => {
@@ -147,7 +146,10 @@ function ActionMapTable(party, showFreeActions) {
     actionMap[party].forEach((action, index) => {
         const row = document.createElement('tr');
         if (Math.trunc(index / actionBlockSize) % 2 === 1) {
-            row.className = "lightRow";
+            row.classList.add("lightRow");
+        }
+        if (selectedAction === index) {
+            row.classList.add("selectedRow");
         }
         const idx = document.createElement('td');
         idx.innerText = index;
@@ -161,6 +163,10 @@ function ActionMapTable(party, showFreeActions) {
         const targets = document.createElement('td');
         targets.innerHTML = action.targets.join('<br>');
         row.appendChild(targets);
+        row.addEventListener('click', () => {
+            stateManager.updateState('timelineSelect', { party, index });
+            stateManager.refresh("gamestate.actionMap");
+        });
         actionTable.appendChild(row);
     });
     container.appendChild(actionTable);
@@ -212,8 +218,6 @@ function ActionQueueDisplay(payload) {
     const actionQueue = payload || stateManager.getState('gamestate.actionQueue');
     const actionIndex = stateManager.getState('gamestate.actionIndex');
 
-    console.log(actionQueue);
-
     const actionTable = document.createElement('table');
     actionTable.className = 'span-2';
 
@@ -260,9 +264,27 @@ function TimelineEditor(payload) {
     if (phase === "Manöverphase") {
         container.appendChild(ManeuverTable());
     } else if (phase === "Kampfphase" || phase === "Kampfphase [Defaults]") {
+        const selectedAction = stateManager.getState('timelineSelect');
         stateManager.getState('config.parties').forEach(party => {
-            container.appendChild(ActionMapTable(party, phase === "Kampfphase [Defaults]" ? false : true));
+            container.appendChild(ActionMapTable(party, phase === "Kampfphase [Defaults]" ? false : true, selectedAction.party === party ? selectedAction.index : -1));
         });
+        const listener = (event) => {
+            const oldAction = {...selectedAction}
+            if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                stateManager.updateState('timelineSelect', { party: selectedAction.party, index: Math.max(selectedAction.index - 1,0) });
+                stateManager.swapActions(oldAction.party, oldAction.index, oldAction.index - 1);
+            } else if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                stateManager.updateState('timelineSelect', { party: selectedAction.party, index: selectedAction.index + 1 });
+                stateManager.swapActions(oldAction.party, oldAction.index, oldAction.index + 1);
+            } else if (event.key === 'Delete') {
+                stateManager.updateState('timelineSelect', { party: selectedAction.party, index: Math.max(selectedAction.index - 1, 0)});
+                stateManager.deleteAction(oldAction.party, oldAction.index);
+            }
+        };
+        document.addEventListener('keydown', listener);
+        lastKeyEvent = listener;
     } else if (phase === "Kampfphase [Ausführung]" || phase === "Kampfphase [unterbrochen]" || phase === "Kampfphase [Ende]") {
         container.appendChild(ActionQueueDisplay(payload));
     }
