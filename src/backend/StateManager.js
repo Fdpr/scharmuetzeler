@@ -126,6 +126,7 @@ class StateManager {
 
     /**
      * save the current workspace (either override state.json or create a new one)
+     * the override flag is currently ignored and both a copy as well as the original state.json are saved
      */
     saveWorkspace(overrideState, silent) {
         if (this.state.gamestate.state === "SELECT") {
@@ -158,7 +159,9 @@ class StateManager {
             })),
         }
         const timeString = new Date().toISOString().replace(/[:.]/g, '-');
-        global.fileManager.writeJSON(overrideState ? 'state.json' : `state-${timeString.slice(2, timeString.length - 8)}.json`, state);
+        if (!global.isDev)
+            global.fileManager.writeJSON('state.json', state);
+        global.fileManager.writeJSON(`state-${timeString.slice(2, timeString.length - 8)}.json`, state);
         if (!silent) global.mainWindow.webContents.send('alert', "Spielstand gespeichert!");
     }
 
