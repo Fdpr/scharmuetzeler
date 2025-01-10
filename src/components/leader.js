@@ -49,6 +49,7 @@ class Leader {
      */
     removeTarget(name) {
         this.targets = this.targets.filter(target => target !== name);
+        if (this.targets.length === 0) this.action = "";
     }
 
     doDamage() {
