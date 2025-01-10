@@ -558,7 +558,7 @@ class ActionManager {
                     name: leader.action,
                     type: "leaderAction",
                     entity: leader.name,
-                    targets: leader.targets || []
+                    targets: leader.targets.map(name => this.stateManager.getLeader(name)) || []
                 }
                 this.gamestate.activeEntity = leader.name;
                 this.performLeaderAction();
@@ -578,6 +578,7 @@ class ActionManager {
             }
             if (!this.gamestate.backInTime) troop.handleEndOfManeuver()
         });
+        this.notificationManager.message("Manöverphase beendet. Kampfphase beginnt.");
         this.stateManager.updateState("gamestate.backInTime", false);
         this.stateManager.updateState("gamestate.phase", "Kampfphase");
         this.stateManager.updateState("gamestate.state", "FREE");
