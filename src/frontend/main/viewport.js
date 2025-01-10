@@ -45,7 +45,15 @@ function setUp(newConfig) {
 
         if (config.bgImage) {
 
-            const bgImg = await d3.image(path.join(config.workspace, config.bgImage))
+            let bgImg;
+
+            try {
+                bgImg = await d3.image(path.join(config.workspace, config.bgImage))
+            } catch (error) {
+                console.log("Error loading background image", error);
+                message("Error loading background image");
+                return;
+            }
 
             const scaling = (config.bgImageGridSquares * gridSize) / bgImg.width;
             const bgWidth = bgImg.width * scaling;
@@ -67,10 +75,10 @@ function setUp(newConfig) {
             function updateBg(zoomEvent) {
                 bg
                     .attr("transform", zoomEvent.transform)
-                    //.attr('width', bgWidth * zoomEvent.transform.k)
-                    //.attr('height', bgHeight * zoomEvent.transform.k)
-                    //.attr('x', zoomEvent.transform.x)
-                    //.attr('y', zoomEvent.transform.y);
+                //.attr('width', bgWidth * zoomEvent.transform.k)
+                //.attr('height', bgHeight * zoomEvent.transform.k)
+                //.attr('x', zoomEvent.transform.x)
+                //.attr('y', zoomEvent.transform.y);
             }
         } else {
             function updateBg(zoomEvent) { return }

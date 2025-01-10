@@ -251,7 +251,10 @@ class Troop {
             this.addCondition("x", "Schock", 1);
             this.doMoralProbe();
         }
-        if (this.hasCondition("g")) trueDamage = Math.ceil(damage / 2);
+        if (this.hasCondition("g")) {
+            trueDamage = Math.ceil(damage / 2);
+            this.doMoralProbe();
+        }
         if (this.isPlaenkeln) {
             if (context.attack && (context.attack.isLance || context.attack.isCharge || context.attack.isFlank)) {
                 trueDamage *= 2;
