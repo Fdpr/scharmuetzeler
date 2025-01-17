@@ -201,3 +201,7 @@ tr {
 .selectedRow {
   background-color: lightblue;
 }
+
+.ghostRow {
+  color: darkgray;
+}

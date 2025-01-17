@@ -52,7 +52,10 @@ function setUp(newConfig) {
             } catch (error) {
                 console.log("Error loading background image", error);
                 message("Error loading background image");
-                return;
+                bgImg = {
+                    width: 100,
+                    height: 100
+                }
             }
 
             const scaling = (config.bgImageGridSquares * gridSize) / bgImg.width;

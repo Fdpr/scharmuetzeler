@@ -33,6 +33,7 @@ const { roll } = require("../util/rolling");
 
 function flank(attacker, defender, setTarget = false) {
     const log = [`${attacker.name} flankiert ${defender.name}.`];
+    const shortLog = [];
     const context = {
         attacker: attacker,
         defender: defender,
@@ -46,11 +47,14 @@ function flank(attacker, defender, setTarget = false) {
     if (attacker.roll("AT", context)) {
         defender.exhaust(1)
         const damage = attacker.doDamage();
-        log.push(`${attacker.name} trifft ${defender.name} und richtet ${damage} TP (${defender.takeDamage(damage, context)} SP) an.`);
+        const takenDamage = defender.takeDamage(damage, context);
+        log.push(`${attacker.name} trifft ${defender.name} und richtet ${damage} TP (${takenDamage} SP) an.`);
+        shortLog.push(`Flankierung erfolgreich, ${damage} TP (${takenDamage} SP)`);
     } else {
         log.push(`${attacker.name} verfehlt ${defender.name}.`);
+        shortLog.push("Flankierung fehlgeschlagen.");
     }
-    return log;
+    return { log, shortLog };
 }
 
 const maneuvers = [
@@ -61,9 +65,11 @@ const maneuvers = [
         perform: (troop, targets) => {
             troop.exhaust(3);
             troop.isMove = true;
+            troop.removeTarget();
             return {
                 pause: false,
                 log: [`${troop.name} läuft`],
+
             };
         }
     },
@@ -77,7 +83,8 @@ const maneuvers = [
             const hasHealed = troop.healExhaustion(heal);
             return {
                 pause: false,
-                log: [hasHealed ? `${troop.name} ruht sich aus und heilt ${heal} Punkte Erschöpfung.` : ""]
+                log: [hasHealed ? `${troop.name} ruht sich aus und heilt ${heal} Punkte Erschöpfung.` : ""],
+                shortLog: [hasHealed ? `${heal} Erschöpfung geheilt.` : ""]
             };
         }
     },
@@ -97,15 +104,24 @@ const maneuvers = [
                 attack: {
                     isRetreat: true
                 }
-            }) return {
-                pause: true,
-                log: [`${troop.name} zieht sich geordnet zurück.`],
-                display: `Wähle Rückzugsort für ${troop.name}.`,
+            }) {
+                troop.removeTarget();
+                return {
+                    pause: true,
+                    log: [`${troop.name} zieht sich geordnet zurück.`],
+                    shortLog: ["Erfolg"],
+                    display: `Wähle Rückzugsort für ${troop.name}.`,
+                }
             }
-            if (target) return {
-                pause: false,
-                log: [`${troop.name} scheitert einen geordneten Rückzug.`, ...flank(target, troop)]
-            };
+            if (target) {
+                const { flankLog, flankShortLog } = flank(target, troop);
+                return {
+                    pause: false,
+                    log: [`${troop.name} scheitert einen geordneten Rückzug.`, ...flankLog],
+                    shortLog: ["Gescheitert", ...flankShortLog]
+
+                }
+            }
         }
     },
     {
@@ -131,11 +147,13 @@ const maneuvers = [
             if (troop.roll("AT", context) && !target.roll("PA", context) && !target.isPlaenkeln) return {
                 pause: true,
                 log: [`${troop.name} manövriert ${target.name}.`],
+                shortLog: ["Erfolg"],
                 display: `Manövriere ${troop.name} und ${target.name} gemeinsam um 1 Feld.`
             }
             return {
                 pause: false,
-                log: [`${troop.name} scheitert, ${target.name} zu manövrieren.`]
+                log: [`${troop.name} scheitert, ${target.name} zu manövrieren.`],
+                shortLog: ["Gescheitert"]
             }
         }
     },
@@ -158,6 +176,7 @@ const maneuvers = [
             troop.exhaust(4);
             troop.isMove = true;
             troop.addCondition("sp", "Sprint", 1);
+            troop.removeTarget();
             return {
                 pause: false,
                 log: [`${troop.name} sprintet.`],
@@ -195,21 +214,30 @@ const maneuvers = [
                     log.push(`${target.name} wehrt den Angriff ab.`);
                     return {
                         pause: false,
-                        log: log
+                        log: log,
+                        shortLog: ["Pariert"]
                     }
                 }
 
                 const damage = troop.doDamage();
-                log.push(`${troop.name} trifft ${target.name} und richtet ${damage} TP (${target.takeDamage(damage, context)} SP) an.`);
-                if (target.isPikenwall) log = [...log, ...flank(target, troop)];
+                const takenDamage = target.takeDamage(damage, context);
+                const shortLog = [`getroffen, ${damage} TP (${takenDamage} SP)`];
+                log.push(`${troop.name} trifft ${target.name} und richtet ${damage} TP (${takenDamage} SP) an.`);
+                if (target.isPikenwall) {
+                    const { flankLog, flankShortLog } = flank(target, troop);
+                    log = [...log, ...flankLog];
+                }
+                shortLog = [...shortLog, ...flankShortLog];
                 return {
                     pause: false,
-                    log: log
+                    log: log,
+                    shortLog: shortLog
                 }
             }
             return {
                 pause: false,
-                log: [`${troop.name} scheitert, ${target.name} zu treffen.`]
+                log: [`${troop.name} scheitert, ${target.name} zu treffen.`],
+                shortLog: ["Gescheitert"]
             }
         }
     },
@@ -225,6 +253,7 @@ const maneuvers = [
         perform: (troop, targets) => {
             const target = targets[0];
             const log = [`${troop.name} führt einen Sturmangriff auf ${target.name} aus.`];
+            const shortLog = [];
             troop.setMeleeTarget(target.name);
             const context = {
                 attacker: troop,
@@ -241,18 +270,27 @@ const maneuvers = [
                     target.isSchildwall = false;
                     if (target.addCondition("x", "Schock", 1)) target.doMoralProbe();
                     const damage = troop.doDamage();
-                    log.push(`${troop.name} trifft ${target.name} und richtet ${damage} TP (${target.takeDamage(damage, context)} SP) an.`);
+                    const takenDamage = target.takeDamage(damage, context);
+                    shortLog.push(`getroffen, ${damage} TP (${takenDamage} SP)`);
+                    log.push(`${troop.name} trifft ${target.name} und richtet ${damage} TP (${takenDamage} SP) an.`);
                 } else {
                     log.push(`${target.name} wehrt den Angriff ab.`);
+                    shortLog.push("Pariert");
                 }
             } else {
                 log.push(`${troop.name} verfehlt ${target.name}.`);
+                shortLog.push("Verfehlt");
             }
 
-            if (target.isPikenwall) log = [...log, ...flank(target, troop)];
+            if (target.isPikenwall) {
+                const { flankLog, flankShortLog } = flank(target, troop);
+                log = [...log, ...flankLog];
+                shortLog = [...shortLog, ...flankShortLog];
+            }
             return {
                 pause: false,
-                log: log
+                log: log,
+                shortLog: shortLog
             }
         }
     },
@@ -328,13 +366,15 @@ const maneuvers = [
                 log.push(`${troop.name} trifft ${targets.length} Einheiten mit Sperrfeuer.`);
                 return {
                     pause: false,
-                    log: log
+                    log: log,
+                    shortLog: [`${targets.length} Einheiten getroffen`]
                 }
             } else {
                 log.push(`${troop.name} verfehlt das Sperrfeuer.`);
                 return {
                     pause: false,
-                    log: log
+                    log: log,
+                    shortLog: ["Verfehlt"]
                 }
             }
         }
@@ -347,6 +387,7 @@ const maneuvers = [
             troop.exhaust(2);
             troop.addCondition("d", "Deckung", 1);
             troop.modify("GS", -3);
+            troop.removeTarget();
             return {
                 pause: false,
                 log: [`${troop.name} sucht Deckung.`],
@@ -438,23 +479,27 @@ const actions = [
                 target.exhaust(1);
                 if (!target.roll("PA", context)) {
                     const damage = troop.doDamage();
-                    log.push(`${troop.name} trifft ${target.name} und richtet ${damage} TP (${target.takeDamage(damage, context)} SP) an.`);
+                    const takenDamage = target.takeDamage(damage, context);
+                    log.push(`${troop.name} trifft ${target.name} und richtet ${damage} TP (${takenDamage} SP) an.`);
                     return {
                         pause: false,
-                        log: log
+                        log: log,
+                        shortLog: [`${damage} TP (${takenDamage} SP)`]
                     }
                 } else {
                     log.push(`${target.name} wehrt den Angriff ab.`);
                     return {
                         pause: false,
-                        log: log
+                        log: log,
+                        shortLog: ["Pariert"]
                     }
                 }
             } else {
                 log.push(`${troop.name} verfehlt ${target.name}.`);
                 return {
                     pause: false,
-                    log: log
+                    log: log,
+                    shortLog: ["Verfehlt"]
                 }
             }
         }
@@ -468,11 +513,33 @@ const actions = [
             min: 1,
             display: `Wähle die Einheit, die ${troop.name} flankieren soll.`
         }),
-        checkTargeted: (troop, targets) => troop.canAttackMelee(targets[0].name) && targets[0].meleeTarget !== troop.name,
+        checkTargeted: (troop, targets) => troop.canAttackMelee(targets[0].name),
         perform: (troop, targets) => {
+            const { log, shortLog } = flank(troop, targets[0], setTarget = true);
             return {
                 pause: false,
-                log: flank(troop, targets[0], setTarget = true)
+                log: log,
+                shortLog: shortLog.map(s => s.slice(12))
+            }
+        }
+    },
+    {
+        name: "Nachladen",
+        checkUntargeted: (troop) => troop.get("reach") > 0 && troop.get("nachladen") > 0,
+        select: (troop) => ({
+            select: true,
+            max: 1,
+            display: `Wähle die Einheit, die ${troop.name} nach dem Nachladen im Fernkampf angreifen soll.`
+        }),
+        checkTargeted: (troop, targets) => true,
+        perform: (troop, targets) => {
+            if (targets.length > 0) {
+                troop.setRangeTarget(targets[0].name);
+            }
+            troop.nachladen--;
+            return {
+                pause: false,
+                log: [`${troop.name} lädt nach.`]
             }
         }
     },
@@ -494,7 +561,8 @@ const actions = [
                 troop.nachladen--;
                 return {
                     pause: false,
-                    log: [`${troop.name} lädt nach.`]
+                    log: [`${troop.name} lädt nach.`],
+                    shortLog: ["Nachladen"]
                 }
             } else {
                 const log = [`${troop.name} greift ${target.name} im Fernkampf an.`];
@@ -511,23 +579,27 @@ const actions = [
                     target.exhaust(1);
                     if (!target.roll("PA", context)) {
                         const damage = troop.doDamage();
-                        log.push(`${troop.name} trifft ${target.name} und richtet ${damage} TP (${target.takeDamage(damage, context)} SP) an.`);
+                        const takenDamage = target.takeDamage(damage, context);
+                        log.push(`${troop.name} trifft ${target.name} und richtet ${damage} TP (${takenDamage} SP) an.`);
                         return {
                             pause: false,
-                            log: log
+                            log: log,
+                            shortLog: [`${damage} TP (${takenDamage} SP)`]
                         }
                     } else {
                         log.push(`${target.name} wehrt den Fernkampfangriff ab.`);
                         return {
                             pause: false,
-                            log: log
+                            log: log,
+                            shortLog: ["Pariert"]
                         }
                     }
                 } else {
                     log.push(`${troop.name} verfehlt ${target.name}.`);
                     return {
                         pause: false,
-                        log: log
+                        log: log,
+                        shortLog: ["Verfehlt"]
                     }
                 }
             }
@@ -601,23 +673,27 @@ const actions = [
                 target.exhaust(1);
                 if (!target.roll("PA", context)) {
                     const damage = troop.doDamage();
-                    log.push(`${troop.name} trifft ${target.name} und richtet ${damage} TP (${target.takeDamage(damage, context)} SP) an.`);
+                    const takenDamage = target.takeDamage(damage, context);
+                    log.push(`${troop.name} trifft ${target.name} und richtet ${damage} TP (${takenDamage} SP) an.`);
                     return {
                         pause: false,
-                        log: log
+                        log: log,
+                        shortLog: [`${damage} TP (${takenDamage} SP)`]
                     }
                 } else {
                     log.push(`${target.name} wehrt den Schnellschuss ab.`);
                     return {
                         pause: false,
-                        log: log
+                        log: log,
+                        shortLog: ["Pariert"]
                     }
                 }
             } else {
                 log.push(`${troop.name} verfehlt ${target.name}.`);
                 return {
                     pause: false,
-                    log: log
+                    log: log,
+                    shortLog: ["Verfehlt"]
                 }
             }
 
@@ -655,12 +731,14 @@ const actions = [
                 return {
                     pause: true,
                     log: [`${troop.name} setzt sich ab.`],
+                    shortLog: ["Erfolg"],
                     display: `Wähle Absetzort für ${troop.name}.`
                 }
             } else {
                 return {
                     pause: false,
-                    log: [`${troop.name} scheitert, sich abzusetzen.`]
+                    log: [`${troop.name} scheitert, sich abzusetzen.`],
+                    shortLog: ["Gescheitert"]
                 }
             }
         }
@@ -704,13 +782,15 @@ function generateInspirieren(stat) {
                 leaderTargets(`Inspirieren (${stat})`, leader, targets, false);
                 return {
                     pause: false,
-                    log: [`${leader.name} scheitert, ${targets.map(t => t.name).join(", ")} zu inspirieren.`]
+                    log: [`${leader.name} scheitert, ${targets.map(t => t.name).join(", ")} zu inspirieren.`],
+                    shortLog: ["Gescheitert"]
                 }
             }
             leaderTargets(`Inspirieren (${stat})`, leader, targets, true);
             return {
                 pause: false,
-                log: [`${leader.name} inspiriert ${targets.map(t => t.name).join(", ")}.`]
+                log: [`${leader.name} inspiriert ${targets.map(t => t.name).join(", ")}.`],
+                shortLog: [`Erfolg (${targets.length} Einheiten)`]
             }
         }
     }
@@ -732,13 +812,15 @@ function generateBeleidigen(stat) {
             if (!leader.doKommandoProbe(targets[0].get("EK"))) {
                 return {
                     pause: false,
-                    log: [`${leader.name} scheitert, ${targets[0].name} zu beleidigen.`]
+                    log: [`${leader.name} scheitert, ${targets[0].name} zu beleidigen.`],
+                    shortLog: ["Gescheitert"]
                 }
             }
             targets[0].mods[stat] = Math.max(targets[0].mods[stat] - leader.getBonus(stat), - leader.getBonus(stat));
             return {
                 pause: false,
-                log: [`${leader.name} beleidigt ${targets[0].name}.`]
+                log: [`${leader.name} beleidigt ${targets[0].name}.`],
+                shortLog: ["Erfolg"]
             }
         }
     }
@@ -760,13 +842,15 @@ const leaderActions = [
                 leaderTargets("Kommando übernehmen", leader, targets, false);
                 return {
                     pause: false,
-                    log: [`${leader.name} scheitert, das Kommando zu übernehmen.`]
+                    log: [`${leader.name} scheitert, das Kommando zu übernehmen.`],
+                    shortLog: ["Gescheitert"]
                 }
             }
             leaderTargets("Kommando übernehmen", leader, targets, true);
             return {
                 pause: false,
-                log: [`${leader.name} übernimmt das Kommando über ${targets[0].name}.`]
+                log: [`${leader.name} übernimmt das Kommando über ${targets[0].name}.`],
+                shortLog: ["Erfolg"]
             }
         }
     },
@@ -784,13 +868,15 @@ const leaderActions = [
                 leaderTargets("Unterdrücken", leader, targets, false);
                 return {
                     pause: false,
-                    log: [`${leader.name} scheitert, ${targets[0].name} zu unterdrücken.`]
+                    log: [`${leader.name} scheitert, ${targets[0].name} zu unterdrücken.`],
+                    shortLog: ["Gescheitert"]
                 }
             }
             leaderTargets("Unterdrücken", leader, targets, true);
             return {
                 pause: true,
                 log: [`${leader.name} unterdrückt einen Zustand bei ${targets[0].name}.`],
+                shortLog: ["Erfolg"],
                 display: `Wähle den Zustand, den ${leader.name} unterdrücken soll (Öffne den Editor mit 'e').`
             }
         }
@@ -816,14 +902,16 @@ const leaderActions = [
                 leaderTargets("Anspornen (Manöver)", leader, targets, false);
                 return {
                     pause: false,
-                    log: [`${leader.name} scheitert, ${targets[0].name} anzuspornen.`]
+                    log: [`${leader.name} scheitert, ${targets[0].name} anzuspornen.`],
+                    shortLog: ["Gescheitert"]
                 }
             }
             leaderTargets("Anspornen (Manöver)", leader, targets, true);
             targets[0].modify("maneuverCount", 1);
             return {
                 pause: false,
-                log: [`${leader.name} spornt ${targets[0].name} an.`]
+                log: [`${leader.name} spornt ${targets[0].name} an.`],
+                shortLog: ["Erfolg"]
             }
         }
     },
@@ -841,14 +929,16 @@ const leaderActions = [
                 leaderTargets("Anspornen (Aktion)", leader, targets, false);
                 return {
                     pause: false,
-                    log: [`${leader.name} scheitert, ${targets[0].name} anzuspornen.`]
+                    log: [`${leader.name} scheitert, ${targets[0].name} anzuspornen.`],
+                    shortLog: ["Gescheitert"]
                 }
             }
             leaderTargets("Anspornen (Aktion)", leader, targets, true);
             targets[0].modify("actionCount", 1);
             return {
                 pause: false,
-                log: [`${leader.name} spornt ${targets[0].name} an.`]
+                log: [`${leader.name} spornt ${targets[0].name} an.`],
+                shortLog: ["Erfolg"]
             }
         }
     },
@@ -866,7 +956,8 @@ const leaderActions = [
                 leaderTargets("Sammeln", leader, targets, false);
                 return {
                     pause: false,
-                    log: [`${leader.name} scheitert, ${targets[0].name} zu sammeln.`]
+                    log: [`${leader.name} scheitert, ${targets[0].name} zu sammeln.`],
+                    shortLog: ["Gescheitert"]
                 }
             }
             leaderTargets("Sammeln", leader, targets, true);
@@ -874,7 +965,8 @@ const leaderActions = [
             targets[0].MO = Math.min(targets[0].MO + leader.MOBonus, targets[0].MOBasis);
             return {
                 pause: false,
-                log: [`${leader.name} sammelt ${targets[0].name}.`]
+                log: [`${leader.name} sammelt ${targets[0].name}.`],
+                shortLog: ["Erfolg"]
             }
         }
     },
@@ -894,17 +986,21 @@ const leaderActions = [
             if (!leader.roll("AT", targets[0].get("EK"))) {
                 return {
                     pause: false,
-                    log: [`${leader.name} scheitert, ${targets[0].name} im Scharmützel anzugreifen.`]
+                    log: [`${leader.name} scheitert, ${targets[0].name} im Scharmützel anzugreifen.`],
+                    shortLog: ["Gescheitert"]
                 }
             }
-            const damage = leader.doDamage();
             const context = { attack: { isLeader: true } }
-            const log = [`${leader.name} greift ${targets[0].name} im Scharmützel an und richtet ${damage} TP (${targets[0].takeDamage(damage, context)} SP) Schaden an.`];
+            const damage = leader.doDamage();
+            const takenDamage = targets[0].takeDamage(damage, context);
+            const log = [`${leader.name} greift ${targets[0].name} im Scharmützel an und richtet ${damage} TP (${takenDamage} SP) Schaden an.`];
             const recoil = roll(6, 1) + targets[0].get("EK");
-            log.push(`${leader.name} erleidet im Scharmützel ${recoil} TP (${leader.takeDamage(recoil)} SP).`);
+            const takenRecoil = leader.takeDamage(recoil);
+            log.push(`${leader.name} erleidet im Scharmützel ${recoil} TP (${takenRecoil} SP).`);
             return {
                 pause: false,
-                log: log
+                log: log,
+                shortLog: [`${damage} TP (${takenDamage} SP) an ${targets[0].name}`, `${recoil} TP (${takenRecoil} SP) an ${leader.name}`]
             }
         }
     },

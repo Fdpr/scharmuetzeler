@@ -76,7 +76,7 @@ function ManeuverTable() {
         targets.innerText = maneuver.targets.join(', ');
         row.appendChild(targets);
         const log = document.createElement('td');
-        log.innerHTML = maneuver.log.join('<br>');
+        log.innerHTML = maneuver.shortLog ? maneuver.shortLog.join('<br>') : '';
         row.appendChild(log);
         maneuverTable.appendChild(row);
     });
@@ -124,6 +124,7 @@ function ManeuverTable() {
 }
 
 function ActionMapTable(party, showFreeActions, selectedAction) {
+    // TODO: Show ghosted history of last round's actions.
     const container = document.createElement('div');
     container.className = 'two-column';
     const title = document.createElement('h2');
@@ -143,16 +144,54 @@ function ActionMapTable(party, showFreeActions, selectedAction) {
         header.appendChild(th);
     });
     actionTable.appendChild(header);
-    actionMap[party].forEach((action, index) => {
+    let actionMapDisplay = actionMap[party].map((action, index) => {
+        return { ...action, index };
+    });
+    if (showFreeActions) {
+        const lastRound = stateManager.getLastRound();
+        if (lastRound && lastRound.gamestate.actionMap && lastRound.gamestate.actionMap[party]) {
+            const lastActionMap = lastRound.gamestate.actionMap[party].map(action => {
+                return { ...action, ghost: true };
+            });
+            let currentActionsByEntity = {};
+            actionMapDisplay.forEach(action => {
+                if (!currentActionsByEntity[action.entity]) {
+                    currentActionsByEntity[action.entity] = [];
+                }
+                currentActionsByEntity[action.entity].push(action);
+            });
+
+            let updatedLastActionMap = [];
+            lastActionMap.forEach(lastAction => {
+                if (currentActionsByEntity[lastAction.entity] && currentActionsByEntity[lastAction.entity].length > 0) {
+                    updatedLastActionMap.push(currentActionsByEntity[lastAction.entity].shift());
+                } else {
+                    updatedLastActionMap.push(lastAction);
+                }
+            });
+
+            Object.keys(currentActionsByEntity).forEach(entity => {
+                currentActionsByEntity[entity].forEach(action => {
+                    updatedLastActionMap.unshift(action);
+                });
+            });
+
+            actionMapDisplay = updatedLastActionMap;
+        }
+    }
+    actionMapDisplay.forEach((action, index) => {
         const row = document.createElement('tr');
         if (Math.trunc(index / actionBlockSize) % 2 === 1) {
             row.classList.add("lightRow");
         }
-        if (selectedAction === index) {
+        if (action.ghost) {
+            row.classList.add("ghostRow");
+        }
+        if (!showFreeActions && selectedAction === action.index) {
             row.classList.add("selectedRow");
         }
         const idx = document.createElement('td');
-        idx.innerText = index;
+        idx.innerText = index + 1;
         row.appendChild(idx);
         const unit = document.createElement('td');
         unit.innerText = action.entity;
@@ -163,15 +202,15 @@ function ActionMapTable(party, showFreeActions, selectedAction) {
         const targets = document.createElement('td');
         targets.innerHTML = action.targets.join('<br>');
         row.appendChild(targets);
-        row.addEventListener('click', () => {
-            stateManager.updateState('timelineSelect', { party, index });
-            stateManager.refresh("gamestate.actionMap");
-        });
+        if (!showFreeActions && !action.ghost) {
+            row.addEventListener('click', () => {
+                stateManager.updateState('timelineSelect', { party, index: action.index });
+                stateManager.refresh("gamestate.actionMap");
+            });
+        }
         actionTable.appendChild(row);
     });
     container.appendChild(actionTable);
-    // TODO: Allow moving actions up and down in the list
-    // Do this by selecting a table row and then clicking a button to move it up or down (or using arrow keys)
 
     if (showFreeActions) {
         const freeUnitsTitle = document.createElement('h3');
@@ -244,7 +283,7 @@ function ActionQueueDisplay(payload) {
         targets.innerText = action.targets.join(', ');
         row.appendChild(targets);
         const log = document.createElement('td');
-        log.innerHTML = action.log ? action.log.join('<br>') : '';
+        log.innerHTML = action.shortLog ? action.shortLog.join('<br>') : '';
         row.appendChild(log);
         actionTable.appendChild(row);
     });
@@ -259,7 +298,8 @@ function TimelineEditor(payload) {
     const container = document.createElement('div');
     container.className = "admin-panel";
 
-    container.appendChild(TimelineSlider());
+    // Add this back in when the timeline slider actually works and does something. Which it currently doesn't. Sad. :(
+    // container.appendChild(TimelineSlider());
     const phase = stateManager.getState('gamestate.phase');
     if (phase === "Manöverphase") {
         container.appendChild(ManeuverTable());
@@ -268,23 +308,25 @@ function TimelineEditor(payload) {
         stateManager.getState('config.parties').forEach(party => {
             container.appendChild(ActionMapTable(party, phase === "Kampfphase [Defaults]" ? false : true, selectedAction.party === party ? selectedAction.index : -1));
         });
-        const listener = (event) => {
-            const oldAction = {...selectedAction}
-            if (event.key === 'ArrowUp') {
-                event.preventDefault();
-                stateManager.updateState('timelineSelect', { party: selectedAction.party, index: Math.max(selectedAction.index - 1,0) });
-                stateManager.swapActions(oldAction.party, oldAction.index, oldAction.index - 1);
-            } else if (event.key === 'ArrowDown') {
-                event.preventDefault();
-                stateManager.updateState('timelineSelect', { party: selectedAction.party, index: selectedAction.index + 1 });
-                stateManager.swapActions(oldAction.party, oldAction.index, oldAction.index + 1);
-            } else if (event.key === 'Delete') {
-                stateManager.updateState('timelineSelect', { party: selectedAction.party, index: Math.max(selectedAction.index - 1, 0)});
-                stateManager.deleteAction(oldAction.party, oldAction.index);
-            }
-        };
-        document.addEventListener('keydown', listener);
-        lastKeyEvent = listener;
+        if (phase === "Kampfphase [Defaults]") {
+            const listener = (event) => {
+                const oldAction = { ...selectedAction }
+                if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    stateManager.updateState('timelineSelect', { party: selectedAction.party, index: Math.max(selectedAction.index - 1, 0) });
+                    stateManager.swapActions(oldAction.party, oldAction.index, oldAction.index - 1);
+                } else if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    stateManager.updateState('timelineSelect', { party: selectedAction.party, index: selectedAction.index + 1 });
+                    stateManager.swapActions(oldAction.party, oldAction.index, oldAction.index + 1);
+                } else if (event.key === 'Delete') {
+                    stateManager.updateState('timelineSelect', { party: selectedAction.party, index: Math.max(selectedAction.index - 1, 0) });
+                    stateManager.deleteAction(oldAction.party, oldAction.index);
+                }
+            };
+            document.addEventListener('keydown', listener);
+            lastKeyEvent = listener;
+        }
     } else if (phase === "Kampfphase [Ausführung]" || phase === "Kampfphase [unterbrochen]" || phase === "Kampfphase [Ende]") {
         container.appendChild(ActionQueueDisplay(payload));
     }

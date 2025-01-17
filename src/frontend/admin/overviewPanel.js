@@ -9,7 +9,7 @@ function PartyOverview(party, troops) {
     const troopTable = document.createElement('table');
     troopTable.className = "span-2";
     const header = document.createElement('tr');
-    const headers = ["Name", "LP", "MO", "Ers/Reg", "conds", "AT/PA", "Waffe", "GS", "RS"];
+    const headers = ["Name", "EK", "LP", "MO/immun", "Ers/Reg", "conds", "AT/PA", "Waffe", "GS", "RS"];
     headers.forEach(headerText => {
         const th = document.createElement('th');
         th.innerText = headerText;
@@ -21,8 +21,9 @@ function PartyOverview(party, troops) {
         const row = document.createElement('tr');
         const values = [
             troop.name,
+            troop.get("EK"),
             troop.get("LP"),
-            troop.get("MO"),
+            `${troop.get("MO")}/${troop.get("MOimmun")}`,
             `${troop.get("ErsP")}/${troop.get("RegP")}`,
             troop.conditions.map(c => c.key).join(", "),
             troop.get("reach") <= 1 ? `${troop.get("AT")}/${troop.get("PA")}` : troop.get("FK"),

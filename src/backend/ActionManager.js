@@ -165,12 +165,13 @@ class ActionManager {
             if (this.gamestate.state !== "FREE" || this.gamestate.phase === "Setup") return;
             if (this.gamestate.phase === "Manöverphase") this.stateManager.popUndo();
             if (this.gamestate.phase === "Kampfphase") {
+                // TODO: Make the return to maneuver phase more graceful by using undoStack instead of backInTime
                 this.stateManager.updateState("gamestate.backInTime", true);
                 this.stateManager.updateState("gamestate.phase", "Manöverphase");
                 this.stateManager.refresh("gamestate.maneuverQueue");
             } if (this.gamestate.phase === "Kampfphase [Defaults]") {
                 this.stateManager.updateState("gamestate.phase", "Kampfphase");
-                this.stateManager.updateState("gameestate.display", "");
+                this.stateManager.updateState("gamestate.display", "");
             }
         }
 
@@ -296,8 +297,8 @@ class ActionManager {
                 return;
 
             }
-        } 
-        
+        }
+
         /**
          * We open the panels on key up instead of key down because the focus is lost and the key becomes sticky otherwise.
          */
@@ -348,6 +349,10 @@ class ActionManager {
                 this.endOfManeuverPhase();
             } else if (this.gamestate.phase === "Kampfphase") {
                 this.fillInDefaultActions();
+                this.stateManager.updateState("timelineSelect", {
+                    party: "",
+                    index: 0,
+                },)
             } else if (this.gamestate.phase === "Kampfphase [Defaults]") {
                 this.beginActionExecution();
             } else if (this.gamestate.phase === "Kampfphase [Ausführung]") {
@@ -442,7 +447,7 @@ class ActionManager {
         const maneuver = maneuvers.find(maneuver => maneuver.name === this.currentAction.name);
         const result = maneuver.perform(troop, this.currentAction.targets.map(target => this.stateManager.getTroop(target)));
         result.log.forEach(log => { if (log) this.notificationManager.message(log) });
-        this.stateManager.updateState("gamestate.maneuverQueue", [...this.gamestate.maneuverQueue, { ...this.currentAction, log: result.log }]);
+        this.stateManager.updateState("gamestate.maneuverQueue", [...this.gamestate.maneuverQueue, { ...this.currentAction, log: result.log, shortLog: result.shortLog }]);
         this.stateManager.pushUndo();
         this.stateManager.refresh("tokens")
         this.currentAction = {};
@@ -465,7 +470,7 @@ class ActionManager {
         const leaderAction = leaderActions.find(action => action.name === this.currentAction.name);
         const result = leaderAction.perform(leader, this.currentAction.targets.map(target => this.stateManager.getTroop(target)));
         result.log.forEach(log => { if (log) this.notificationManager.message(log) });
-        this.stateManager.updateState("gamestate.maneuverQueue", [...this.gamestate.maneuverQueue, { ...this.currentAction, log: result.log }]);
+        this.stateManager.updateState("gamestate.maneuverQueue", [...this.gamestate.maneuverQueue, { ...this.currentAction, log: result.log, shortLog: result.shortLog }]);
         this.stateManager.pushUndo();
         this.stateManager.refresh("tokens")
         this.currentAction = {};
@@ -492,7 +497,7 @@ class ActionManager {
             this.stateManager.updateState("gamestate.display", "");
             this.stateManager.updateState("gamestate.phase", "Kampfphase [Ausführung]");
             this.beginActionExecution();
-        } else if (this.gamestate.phase === "Kampfphase") {
+        } else if (this.gamestate.phase === "Kampfphase" || this.gamestate.phase === "Kampfphase [Defaults]") {
             this.gamestate.actionMap[this.stateManager.getTroop(this.stateManager.getToken(this.gamestate.activeEntity).ref).party].push(this.currentAction);
             this.stateManager.updateState("gamestate.actionMap", this.gamestate.actionMap);
             this.currentAction = {};
@@ -528,6 +533,7 @@ class ActionManager {
         const result = actionType.perform(troop, targets);
         result.log.forEach(log => { if (log) this.notificationManager.message(log) });
         action.log = result.log;
+        action.shortLog = result.shortLog;
         this.gamestate.actionQueue[this.gamestate.actionIndex] = action;
         this.stateManager.updateState("gamestate.actionQueue", [...this.gamestate.actionQueue]);
         this.stateManager.updateState("gamestate.actionIndex", this.gamestate.actionIndex + 1);
@@ -578,11 +584,15 @@ class ActionManager {
             }
             if (!this.gamestate.backInTime) troop.handleEndOfManeuver()
         });
-        this.notificationManager.message("Manöverphase beendet. Kampfphase beginnt.");
+        this.stateManager.updateState("log", [...this.stateManager.getState("log"), "\n== Kampfphase ==\n"]);
         this.stateManager.updateState("gamestate.backInTime", false);
         this.stateManager.updateState("gamestate.phase", "Kampfphase");
         this.stateManager.updateState("gamestate.state", "FREE");
         this.stateManager.updateState("gamestate.display", "");
+        this.stateManager.updateState("timelineSelect", {
+            party: "",
+            index: 0,
+        },)
         const actionMap = {};
         this.stateManager.getState("config.parties").forEach(party => {
             actionMap[party] = [];
@@ -607,11 +617,11 @@ class ActionManager {
                 defaultMap[troop.party].push(troop.getDefaultAction());
             }
         });
-        const lastActionMap = this.gamestate.round > 1 ? this.stateManager.getState("history")[this.gamestate.round - 2].actionMap : null;
+        const lastActionMap = this.gamestate.round > 1 ? this.stateManager.getState("history")[this.gamestate.round - 2].gamestate.actionMap : null;
         parties.forEach(party => {
             const mergedList = [...this.gamestate.actionMap[party], ...defaultMap[party]];
             if (lastActionMap) {
-                this.gamestate.actionMap[party] = neighborhoodSort(mergedList, lastActionMap[party]);
+                this.gamestate.actionMap[party] = neighborhoodSort(mergedList, lastActionMap[party], "entity");
             } else {
                 this.gamestate.actionMap[party] = mergedList;
             }
@@ -688,7 +698,7 @@ class ActionManager {
         if (this.gamestate.phase === "Manöverphase") {
             if (this.getNumFreeManeuvers(token.name) <= 0) return;
             this.hoverMenu(maneuvers.filter(maneuver => maneuver.check(troop)).map(maneuver => maneuver.name));
-        } else if (this.gamestate.phase === "Kampfphase" || this.gamestate.phase === "Kampfphase [unterbrochen]") {
+        } else if (this.gamestate.phase === "Kampfphase" || this.gamestate.phase === "Kampfphase [unterbrochen]" || this.gamestate.phase === "Kampfphase [Defaults]") {
             if (this.getNumFreeActions(token.name) <= 0 && this.gamestate.phase !== "Kampfphase [unterbrochen]") return;
             this.hoverMenu(actions.filter(action => action.checkUntargeted(troop)).map(action => action.name));
         }

@@ -593,8 +593,13 @@ class Troop {
      * Removes a target so the troop stops automatically attacking it next round
      */
     removeTarget(target) {
-        if (this.meleeTarget === target) this.meleeTarget = null;
-        if (this.rangeTarget === target) this.rangeTarget = null;
+        if (!target) {
+            this.meleeTarget = "";
+            this.rangeTarget = "";
+        } else {
+            if (this.meleeTarget === target) this.meleeTarget = null;
+            if (this.rangeTarget === target) this.rangeTarget = null;
+        }
     }
 
     /**
@@ -693,6 +698,13 @@ class Troop {
         this.isRange = false;
         this.isRapidFire = false;
         this.leader = "";
+
+        // Reset melee and range targets if no attack was made
+        if (this.meleeTarget || this.rangeTarget) {
+            const actions = getGlobal("stateManager").getState("gamestate.actionQueue").filter(action => action.entity === this.name);
+            if (this.meleeTarget && !actions.some(action => action.targets.includes(this.meleeTarget))) this.meleeTarget = "";
+            if (this.rangeTarget && !actions.some(action => action.targets.includes(this.rangeTarget))) this.rangeTarget = "";
+        }
     }
 
     /**

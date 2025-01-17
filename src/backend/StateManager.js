@@ -331,6 +331,7 @@ class StateManager {
             troops: this.state.troops.map(troop => troop.copy()),
             leaders: this.state.leaders.map(leader => leader.copy()),
             tokens: this.state.tokens.map(token => token.copy()),
+            gamestate: { ...this.state.gamestate },
             log: [...this.state.log],
         };
         if (history.length === round) {
@@ -338,11 +339,22 @@ class StateManager {
                 troops: [],
                 leaders: [],
                 tokens: [],
+                gamestate: {},
                 log: [],
             });
         }
         this.updateState('history', history) // TODO: Is this a bug?.slice(0, round));
         this.updateState('log', []);
+    }
+
+    /**
+     * Comfort utility function to get the state of the last round
+     * If the current round is 0 or 1, null is returned
+    */
+    getLastRound() {
+        const round = this.state.gamestate.round;
+        if (round < 2) return null;
+        return this.state.history[round - 2];
     }
 
     /**
