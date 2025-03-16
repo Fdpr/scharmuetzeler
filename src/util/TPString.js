@@ -1,3 +1,5 @@
+const { roll } = require("./rolling.js");
+
 function stringToComponents(TPString) {
     let TP = String(TPString);
     if (TP === "") return []; // Skip empty components

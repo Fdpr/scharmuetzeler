@@ -218,6 +218,22 @@ class ActionManager {
             this.continue()
         }
 
+
+        // Useful shortcuts
+        // Toggle Condition "Deckung" for troop
+        if (key === "d") {
+            if (!this.gamestate.selectedToken) return;
+            const token = this.stateManager.getToken(this.gamestate.selectedToken);
+            if (!token || token.type === "leader") return;
+            const troop = this.stateManager.getTroop(token.ref);
+            if (!troop) return;
+            if (troop.hasCondition("d")) {
+                troop.removeCondition("d");
+            } else {
+                troop.addCondition("d", "Deckung", -1);
+            }
+        }
+
     }
 
     /**
