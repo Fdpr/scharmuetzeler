@@ -124,7 +124,6 @@ function ManeuverTable() {
 }
 
 function ActionMapTable(party, showFreeActions, selectedAction) {
-    // TODO: Show ghosted history of last round's actions.
     const container = document.createElement('div');
     container.className = 'two-column';
     const title = document.createElement('h2');

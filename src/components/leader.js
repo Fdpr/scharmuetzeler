@@ -52,7 +52,7 @@ class Leader {
         if (this.targets.length === 0) this.action = "";
     }
 
-    doDamage() {
+    doDamage(context = {}) {
         return this.roll("TP");
     }
 
@@ -98,7 +98,7 @@ class Leader {
         else if (this.action === "Kommando übernehmen")
             return this.get(stat + "Bonus");
         else if (this.action.includes("Inspirieren") && this.action.includes(stat)) {
-            return Math.ceil(this.get(stat + "Bonus") / 2);
+            return this.get(stat + "Bonus");
         } else if (this.action === "Anspornen (Manöver)" && stat === "maneuverCount")
             return 1;
         else if (this.action === "Anspornen (Aktion)" && stat === "actionCount")

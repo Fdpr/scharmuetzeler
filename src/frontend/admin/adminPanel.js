@@ -150,6 +150,10 @@ function ConditionEditor() {
     const conditionRS = generateInput("RS", "condition-rs", 0, () => { }, container, 'number');
     const conditionGS = generateInput("GS", "condition-gs", 0, () => { }, container, 'number');
     const conditionAU = generateInput("AU", "condition-au", 0, () => { }, container, 'number');
+    const conditionManeuver = generateInput("Manöver", "condition-maneuver", 0, () => { }, container, 'number');
+    const conditionAction = generateInput("Aktionen", "condition-action", 0, () => { }, container, 'number');
+    const conditionActionEK = generateInput("EchtEK", "condition-actionEK", 0, () => { }, container, 'number');
+    const conditionDamage = generateInput("Schaden", "condition-damage", "", () => { }, container, 'text');
 
     conditionSelect.addEventListener('change', (event) => {
         const condition = conditions[event.target.value];
@@ -164,6 +168,10 @@ function ConditionEditor() {
         conditionRS.value = condition.mods.RS;
         conditionGS.value = condition.mods.GS;
         conditionAU.value = condition.mods.AU;
+        conditionManeuver.value = condition.mods.maneuverCount;
+        conditionAction.value = condition.mods.actionCount;
+        conditionActionEK.value = condition.mods.EKAction;
+        conditionDamage.value = condition.mods.damage;
     });
 
     const addButton = document.createElement('button');
@@ -183,7 +191,11 @@ function ConditionEditor() {
                 MO: parseInt(conditionMO.value),
                 RS: parseInt(conditionRS.value),
                 GS: parseInt(conditionGS.value),
-                AU: parseInt(conditionAU.value)
+                AU: parseInt(conditionAU.value),
+                actionCount: parseInt(conditionAction.value),
+                maneuverCount: parseInt(conditionManeuver.value),
+                EKAction: parseInt(conditionActionEK.value),
+                damage: conditionDamage.value
             }
         });
         stateManager.updateState("conditions", conditions);
@@ -324,7 +336,7 @@ function RollPanel() {
         } else if (roll === "Regenerationsprobe") {
             result = troop.doRegenerationsProbe(modifier);
         } else if (roll === "TP") {
-            result = troop.doDamage() + " TP";
+            result = troop.doDamage(context) + " TP";
         } else {
             result = troop.roll(roll, context, modifier);
         }

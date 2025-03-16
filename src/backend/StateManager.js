@@ -44,7 +44,6 @@ class StateManager {
                 activeEntity: "", // Entity that is currently active (E.g. performing an action)
                 selectedToken: "", // Entity that is currently selected (E.g. for targeting)
                 display: "", // An extra message to display during pauses (e.g. "Select a target")
-                backInTime: false, // Indicates if we are stepping back in time (means to ignore transition calls between phases)
             },
 
             // non-persistent state
@@ -294,13 +293,19 @@ class StateManager {
 
     /**
      * Copies the current timeframe to the undo stack
+     * mode can be 
+     * - "maneuver" to indicate that the undo is for a maneuver performed
+     * - "maneuverEnd" to indicate that the undo is for the end of the maneuver phase
+     * 
      */
-    pushUndo() {
+    pushUndo(mode) {
         this.state.undoStack.push({
             troops: this.state.troops.map(troop => troop.copy()),
             leaders: this.state.leaders.map(leader => leader.copy()),
             tokens: this.state.tokens.map(token => token.copy()),
             log: [...this.state.log],
+            gamestate: { ...this.state.gamestate },
+            mode: mode,
         });
     }
 
@@ -317,7 +322,9 @@ class StateManager {
         this.updateState('tokens', lastFrame.tokens.map(token => token.copy()));
         this.updateState('log', [...lastFrame.log]);
         // Remove last entry from the maneuverQueue
-        this.updateState('gamestate.maneuverQueue', this.state.gamestate.maneuverQueue.slice(0, -1));
+        if (lastFrame.mode === "maneuver" || lastFrame.mode === "maneuverEnd")
+            this.updateState('gamestate.maneuverQueue', lastFrame.gamestate.maneuverQueue);
+            // this.updateState('gamestate.maneuverQueue', this.state.gamestate.maneuverQueue.slice(0, -1));
         return true;
     }
 

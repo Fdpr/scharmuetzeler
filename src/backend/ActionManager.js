@@ -12,7 +12,7 @@
  * - continue (continue button is clicked)
  */
 
-const { actions, maneuvers, leaderActions } = require('../components/maneuvers');
+const { actions, maneuvers, freeActions, leaderActions } = require('../components/maneuvers');
 const { getGlobal } = require('../util/process');
 const { mergeLists, neighborhoodSort } = require("../util/arrays");
 
@@ -165,8 +165,7 @@ class ActionManager {
             if (this.gamestate.state !== "FREE" || this.gamestate.phase === "Setup") return;
             if (this.gamestate.phase === "Manöverphase") this.stateManager.popUndo();
             if (this.gamestate.phase === "Kampfphase") {
-                // TODO: Make the return to maneuver phase more graceful by using undoStack instead of backInTime
-                this.stateManager.updateState("gamestate.backInTime", true);
+                this.stateManager.popUndo();
                 this.stateManager.updateState("gamestate.phase", "Manöverphase");
                 this.stateManager.refresh("gamestate.maneuverQueue");
             } if (this.gamestate.phase === "Kampfphase [Defaults]") {
@@ -251,7 +250,7 @@ class ActionManager {
             if (this.gamestate.phase === "Manöverphase" && token.type === "troop") {
                 const troop = this.stateManager.getTroop(token.ref);
                 if (!troop) return;
-                const select = maneuvers.find(maneuver => maneuver.name === this.currentAction.name).select(troop);
+                const select = [...maneuvers, ...freeActions].find(maneuver => maneuver.name === this.currentAction.name).select(troop);
                 if (!select.select) {
                     this.performManeuver();
                     return;
@@ -282,7 +281,7 @@ class ActionManager {
             } else if (this.gamestate.phase.includes("Kampfphase") && token.type === "troop") {
                 const troop = this.stateManager.getTroop(token.ref);
                 if (!troop) return;
-                const action = actions.find(action => action.name === this.currentAction.name);
+                const action = [...actions, ...freeActions].find(action => action.name === this.currentAction.name);
                 const select = action.select(troop);
                 this.currentAction.type = "action";
                 if (!select.select) {
@@ -341,7 +340,7 @@ class ActionManager {
                 this.stateManager.updateState("gamestate.phase", "Manöverphase")
                 this.stateManager.updateState("gamestate.round", 1)
                 this.stateManager.updateState("gamestate.state", "FREE")
-                this.stateManager.pushUndo();
+                this.stateManager.pushUndo("maneuver");
                 // Just to trigger the timeline panel to refresh
                 this.stateManager.updateState("gamestate.maneuverQueue", [])
             }
@@ -439,16 +438,16 @@ class ActionManager {
     /**
      * This method performs a maneuver by a troop. It handles the aftermath, cleanup and handoff.
      */
-    performManeuver() {
+    performManeuver(skipUndo) {
         const token = this.stateManager.getToken(this.gamestate.activeEntity);
         const troop = this.stateManager.getTroop(token.ref);
         if (!troop) return;
         if (!this.hasManeuvered(troop.name)) troop.handleFirstManeuver();
-        const maneuver = maneuvers.find(maneuver => maneuver.name === this.currentAction.name);
+        const maneuver = [...maneuvers, ...freeActions].find(maneuver => maneuver.name === this.currentAction.name);
         const result = maneuver.perform(troop, this.currentAction.targets.map(target => this.stateManager.getTroop(target)));
         result.log.forEach(log => { if (log) this.notificationManager.message(log) });
         this.stateManager.updateState("gamestate.maneuverQueue", [...this.gamestate.maneuverQueue, { ...this.currentAction, log: result.log, shortLog: result.shortLog }]);
-        this.stateManager.pushUndo();
+        if (!skipUndo) this.stateManager.pushUndo("maneuver");
         this.stateManager.refresh("tokens")
         this.currentAction = {};
         if (result.pause)
@@ -463,7 +462,7 @@ class ActionManager {
         // TODO: Is this enough ???
     }
 
-    performLeaderAction() {
+    performLeaderAction(skipUndo) {
         const token = this.stateManager.getToken(this.gamestate.activeEntity);
         const leader = this.stateManager.getLeader(token.ref);
         if (!leader) return;
@@ -471,7 +470,7 @@ class ActionManager {
         const result = leaderAction.perform(leader, this.currentAction.targets.map(target => this.stateManager.getTroop(target)));
         result.log.forEach(log => { if (log) this.notificationManager.message(log) });
         this.stateManager.updateState("gamestate.maneuverQueue", [...this.gamestate.maneuverQueue, { ...this.currentAction, log: result.log, shortLog: result.shortLog }]);
-        this.stateManager.pushUndo();
+        if (!skipUndo) this.stateManager.pushUndo("maneuver");
         this.stateManager.refresh("tokens")
         this.currentAction = {};
         if (result.pause)
@@ -521,7 +520,7 @@ class ActionManager {
             return;
         };
         this.stateManager.updateState("gamestate.activeEntity", troop.name);
-        const actionType = actions.find(actionType => actionType.name === action.name);
+        const actionType = [...actions, ...freeActions].find(actionType => actionType.name === action.name);
         const targets = action.targets.map(target => this.stateManager.getTroop(target));
 
         if (!actionType.checkUntargeted(troop) || !actionType.checkTargeted(troop, targets)) {
@@ -557,6 +556,7 @@ class ActionManager {
      * Then it advances the phase to the action phase.
      */
     endOfManeuverPhase() {
+        this.stateManager.pushUndo("maneuverEnd");
         const leaders = this.stateManager.getState("leaders");
         leaders.forEach(leader => {
             if ((this.getNumFreeManeuvers(leader.name) > 0) && leader.action) {
@@ -567,7 +567,7 @@ class ActionManager {
                     targets: leader.targets.map(name => this.stateManager.getLeader(name)) || []
                 }
                 this.gamestate.activeEntity = leader.name;
-                this.performLeaderAction();
+                this.performLeaderAction(true);
             }
         });
         const troops = this.stateManager.getState("troops");
@@ -580,12 +580,11 @@ class ActionManager {
                     targets: []
                 }
                 this.gamestate.activeEntity = troop.name;
-                this.performManeuver();
+                this.performManeuver(true);
             }
-            if (!this.gamestate.backInTime) troop.handleEndOfManeuver()
         });
+        troops.forEach(troop => troop.handleEndOfManeuver());
         this.stateManager.updateState("log", [...this.stateManager.getState("log"), "\n== Kampfphase ==\n"]);
-        this.stateManager.updateState("gamestate.backInTime", false);
         this.stateManager.updateState("gamestate.phase", "Kampfphase");
         this.stateManager.updateState("gamestate.state", "FREE");
         this.stateManager.updateState("gamestate.display", "");
@@ -670,7 +669,7 @@ class ActionManager {
         this.stateManager.updateState("gamestate.actionQueue", []);
         this.stateManager.updateState("gamestate.actionIndex", 0);
         this.stateManager.updateState("undoStack", [])
-        this.stateManager.pushUndo();
+        this.stateManager.pushUndo("maneuver");
         this.stateManager.saveWorkspace(false, true);
 
         // TODO: Is this enough ???
@@ -697,10 +696,10 @@ class ActionManager {
         if (!troop) return;
         if (this.gamestate.phase === "Manöverphase") {
             if (this.getNumFreeManeuvers(token.name) <= 0) return;
-            this.hoverMenu(maneuvers.filter(maneuver => maneuver.check(troop)).map(maneuver => maneuver.name));
+            this.hoverMenu([...maneuvers, ...freeActions].filter(maneuver => maneuver.check(troop)).map(maneuver => maneuver.name));
         } else if (this.gamestate.phase === "Kampfphase" || this.gamestate.phase === "Kampfphase [unterbrochen]" || this.gamestate.phase === "Kampfphase [Defaults]") {
             if (this.getNumFreeActions(token.name) <= 0 && this.gamestate.phase !== "Kampfphase [unterbrochen]") return;
-            this.hoverMenu(actions.filter(action => action.checkUntargeted(troop)).map(action => action.name));
+            this.hoverMenu([...actions, ...freeActions].filter(action => action.checkUntargeted(troop)).map(action => action.name));
         }
     }
 

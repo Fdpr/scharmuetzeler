@@ -1,4 +1,6 @@
 const { roll } = require("../util/rolling");
+const { stringToComponents, componentsToString, calculateDamage } = require("../util/TPString");
+
 
 class Weapon {
     constructor(name, ATMod, PAMod, FKMod, shield, TP, reach, nachladen) {
@@ -9,48 +11,15 @@ class Weapon {
         this.shield = Boolean(shield);
         this.reach = parseInt(reach);
         this.nachladen = parseInt(nachladen);
-
-        let tempTP = String(TP);
-        if (!tempTP.startsWith('+') && !tempTP.startsWith('-')) {
-            tempTP = '+' + tempTP;
-        }
-        tempTP = tempTP.split(/(?=[\+-])/); // Split at + or - but keep the sign
-
-        this.TP = tempTP.map(part => {
-            const match = part.match(/^([\+-])(\d*)W?(\d+)?$/);
-            if (match) {
-                const sign = match[1] || ""; // "+" or "-"
-                const firstNumber = match[2] ? parseInt(match[2], 10) : 1; // Default to 1 if missing
-                const secondNumber = match[3] ? parseInt(match[3], 10) : 1; // Default to 1 if missing
-                return [sign, firstNumber, secondNumber];
-            }
-            return null; // In case of an invalid match
-        });
+        this.TP = stringToComponents(TP);
     }
 
     TPString() {
-        return this.TP.map(component => {
-            if (!component) return ""; // Skip null components
-            const [sign, firstNumber, secondNumber] = component;
-            return secondNumber > 1 ? `${sign}${firstNumber}W${secondNumber}` : `${sign}${firstNumber}`;
-        }).join("").replace(/^\+/, ""); // Remove leading "+" if present
+        return componentsToString(this.TP);
     }
 
     damage() {
-        let runningSum = 0;
-
-        for (const component of this.TP) {
-            if (!component) continue; // Skip null components
-            const [sign, firstNumber, secondNumber] = component;
-            const diceRoll = roll(secondNumber, firstNumber);
-            if (sign === "-") {
-                runningSum -= diceRoll;
-            } else {
-                runningSum += diceRoll; // Assume sign is "+" or empty for positive
-            }
-        }
-
-        return runningSum;
+        return calculateDamage(this.TP);
     }
 
     static fromJSON(json) {

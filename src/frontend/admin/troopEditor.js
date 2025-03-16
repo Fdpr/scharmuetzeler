@@ -240,9 +240,6 @@ function TroopEditor(troop) {
     generateInput('Macht Schnellschuss', 'troop-isRapidFire', troop.isRapidFire, e => troop.isRapidFire = parseInt(e.target.value), dynamicInfo, "checkbox");
     generateInput('Runden Schnellschuss', 'troop-rapidFireCounter', troop.rapidFireCounter, e => troop.rapidFireCounter = parseInt(e.target.value), dynamicInfo, "number");
     generateInput('In Bewegung', 'troop-isMove', troop.isMove, e => troop.isMove = e.target.checked, dynamicInfo, "checkbox");
-    generateInput('Am Plänkeln', 'troop-isPlaenkeln', troop.isPlaenkeln, e => troop.isPlaenkeln = e.target.checked, dynamicInfo, "checkbox");
-    generateInput('Im Schildwall', 'troop-isSchildwall', troop.isSchildwall, e => troop.isSchildwall = e.target.checked, dynamicInfo, "checkbox");
-    generateInput('Im Pikenwall', 'troop-isPikenwall', troop.isPikenwall, e => troop.isPikenwall = e.target.checked, dynamicInfo, "checkbox");
     generateInput('Anführer', 'troop-leader', troop.leader, e => troop.leader = e.target.value, dynamicInfo);
 
     const weaponsInfo = document.createElement('div');

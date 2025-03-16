@@ -3,7 +3,7 @@ const { getGlobal } = require("../util/process");
 const { chebyshevDistance } = require("../util/spatial");
 
 const Weapon = require("./weapon");
-const { applyAllConditions } = require("./conditions");
+const { applyAllConditions, calculateConditionDamage } = require("./conditions");
 
 function message(msg) {
     getGlobal("notificationManager").message(msg);
@@ -16,7 +16,7 @@ function getStateManager() {
 class Troop {
     constructor(name, party, ref, EK, anzahl, big, RTM, GSBasis, GSRitt, MaxLP, RSBasis, ATBasis, PABasis, FKBasis, MOBasis, AUBasis, INIBasis, actionCount, maneuverCount, weapons, properties,
         // These parameters only need to be passed if the Troop is constructed mid-combat
-        LP, MO, MOImmun, ErsP, RegP, Ini, weapon, isMelee, meleeCounter, meleeTarget, parryCounter, isRange, nachladen, rangeTarget, isRapidFire, rapidFireCounter, isMove, isPlaenkeln, isSchildwall, isPikenwall, mods, conditions, immunities, leader) {
+        LP, MO, MOImmun, ErsP, RegP, Ini, weapon, isMelee, meleeCounter, meleeTarget, parryCounter, isRange, nachladen, rangeTarget, isRapidFire, rapidFireCounter, isMove, mods, conditions, immunities, leader) {
 
         // static fields
         // THESE SHOULD NEVER CHANGE I THINK
@@ -74,10 +74,6 @@ class Troop {
         this.rapidFireCounter = parseInt(rapidFireCounter) || 0; // counts the number of shots done this round
 
         this.isMove = Boolean(isMove) || false; // was moving this round
-        this.isPlaenkeln = Boolean(isPlaenkeln) || false;
-        this.isSchildwall = Boolean(isSchildwall) || false;
-        this.isPikenwall = Boolean(isPikenwall) || false;
-
 
         // mods and stuff
         const baseMods = { EK: 0, AT: 0, PA: 0, FK: 0, TP: 0, MO: 0, RS: 0, GS: 0, AU: 0, actionCount: 0, maneuverCount: 0, EKAction: 0 };
@@ -103,7 +99,7 @@ class Troop {
 
         return new Troop
             (troop.name, troop.party, troop.ref, troop.EK, troop.anzahl, troop.big, troop.RTM, troop.GSBasis, troop.GSRitt, troop.MaxLP, troop.RSBasis, troop.ATBasis, troop.PABasis, troop.FKBasis, troop.MOBasis, troop.AUBasis, troop.INIBasis, troop.actionCount, troop.maneuverCount, troop.weapons.map(weapon => Weapon.copyFrom(weapon)), troop.properties,
-                troop.LP, troop.MO, troop.MOimmun, troop.ErsP, troop.RegP, troop.Ini, troop.weapon, troop.isMelee, troop.meleeCounter, troop.meleeTarget, troop.parryCounter, troop.isRange, troop.nachladen, troop.rangeTarget, troop.isRapidFire, troop.rapidFireCounter, troop.isMove, troop.isPlaenkeln, troop.isSchildwall, troop.isPikenwall, troop.mods, troop.conditions, troop.immunities, troop.leader);
+                troop.LP, troop.MO, troop.MOimmun, troop.ErsP, troop.RegP, troop.Ini, troop.weapon, troop.isMelee, troop.meleeCounter, troop.meleeTarget, troop.parryCounter, troop.isRange, troop.nachladen, troop.rangeTarget, troop.isRapidFire, troop.rapidFireCounter, troop.isMove, troop.mods, troop.conditions, troop.immunities, troop.leader);
     }
 
     copy(fresh = false) {
@@ -113,7 +109,7 @@ class Troop {
     static fromJSON(json) {
         return new Troop
             (json.name, json.party, json.ref, json.EK, json.anzahl, json.big, json.RTM, json.GSBasis, json.GSRitt, json.MaxLP, json.RSBasis, json.ATBasis, json.PABasis, json.FKBasis, json.MOBasis, json.AUBasis, json.INIBasis, json.actionCount, json.maneuverCount, json.weapons.map(weapon => Weapon.fromJSON(weapon)), json.properties,
-                json.LP, json.MO, json.MOimmun, json.ErsP, json.RegP, json.Ini, json.weapon, json.isMelee, json.meleeCounter, json.meleeTarget, json.parryCounter, json.isRange, json.nachladen, json.rangeTarget, json.isRapidFire, json.rapidFireCounter, json.isMove, json.isPlaenkeln, json.isSchildwall, json.isPikenwall, json.mods, json.conditions, json.immunities, json.leader);
+                json.LP, json.MO, json.MOimmun, json.ErsP, json.RegP, json.Ini, json.weapon, json.isMelee, json.meleeCounter, json.meleeTarget, json.parryCounter, json.isRange, json.nachladen, json.rangeTarget, json.isRapidFire, json.rapidFireCounter, json.isMove, json.mods, json.conditions, json.immunities, json.leader);
     }
 
     toJSON() {
@@ -154,9 +150,6 @@ class Troop {
             nachladen: this.nachladen,
             rangeTarget: this.rangeTarget,
             isMove: this.isMove,
-            isPlaenkeln: this.isPlaenkeln,
-            isSchildwall: this.isSchildwall,
-            isPikenwall: this.isPikenwall,
             mods: this.mods,
             conditions: this.conditions,
             immunities: this.immunities,
@@ -189,8 +182,13 @@ class Troop {
         return this.weapons[this.weapon];
     }
 
-    doDamage() {
-        return this.getCurrentWeapon().damage() + this.get("TP");
+    doDamage(context = {}) {
+        let damage = this.getCurrentWeapon().damage() + this.get("TP");
+        const attackMod = context.attack && context.attack.modifier ? context.attack.modifier : 0;
+        if (this.get("AT") - attackMod > 20) {
+            damage += Math.round((this.get("AT") - 20) / 4);
+        }
+        return damage
     }
 
     healLP(amount) {
@@ -246,16 +244,7 @@ class Troop {
 
     takeDamage(damage, context = {}) {
         let trueDamage = damage;
-        // Ranged attacks with more than 7 damage and EK < 7
-        if (context.attack && context.attack.isRange && (damage > 7 + this.get("EK"))) {
-            this.addCondition("x", "Schock", 1);
-            this.doMoralProbe();
-        }
-        if (this.hasCondition("g")) {
-            trueDamage = Math.ceil(damage / 2);
-            this.doMoralProbe();
-        }
-        if (this.isPlaenkeln) {
+        if (this.hasCondition("pl")) {
             if (context.attack && (context.attack.isLance || context.attack.isCharge || context.attack.isFlank)) {
                 trueDamage *= 2;
             } else {
@@ -266,9 +255,19 @@ class Troop {
         if (!context.damage || !context.damage.isTrue) trueDamage = Math.max(0, trueDamage - this.get("RS", context));
         else trueDamage = Math.max(0, trueDamage);
 
-        // If the attacker is in "Ausfall" this round, the troop needs to perform a morale check
-        if (trueDamage && context.attacker && context.attacker.hasCondition("au")) {
-            this.doMoralProbe();
+        if (trueDamage) {
+            // If the attacker is in "Ausfall" this round, the troop needs to perform a morale check
+            if (context.attacker && context.attacker.hasCondition("au"))
+                this.doMoralProbe();
+            // If the troop has low hitpoints, it needs to perform a morale check
+            if (this.hasCondition("g"))
+                this.doMoralProbe();
+            // If the troop is inhibited, these things end.
+            if (context.attacker && this.hasCondition("st")) {
+                this.removeCondition("sw");
+                this.removeCondition("pw");
+                this.removeCondition("d")
+            }
         }
         this.LP -= trueDamage;
         if (this.LP <= 0) {
@@ -305,7 +304,11 @@ class Troop {
      * @param {object} context additional context for the roll
      */
     roll(stat, context = {}, modifier = 0) {
-        if (stat === "AT" && this.hasCondition("l") && context.defender && this.getCondition("l").focus !== context.defender.name) this.doMoralProbe();
+        // If the troop is distracted and fails the morale check, it cannot attack
+        if (stat === "AT" && this.hasCondition("l") && context.defender && this.getCondition("l").focus !== context.defender.name) {
+            if (!this.doMoralProbe()) 
+                return false;
+        }
 
         if (stat === "AT" || stat === "PA") this.isMelee = true;
         else if (stat === "FK") {
@@ -313,13 +316,24 @@ class Troop {
             if (context.attack && context.attack.isRapidFire) this.isRapidFire = true;
         }
 
+        // In case defender has a high def stat, add a penalty to the attack
+        if (stat === "AT" && context.defender && context.defender.get("PA") > 20) {
+            modifier += Math.round((context.attacker.get("PA") - 20) / 2);
+        }
+
         if (stat === "PA") {
+            if (this.hasCondition("ko")) return false; // Troops who counter do not parry
             if (context.attacker && context.attacker.isBig && !this.get("shield")) return false; // Attacks from large enemies
-            if (context.attack && context.attack.isLance && !this.isPikenwall) return false; // Attacks from Lanzenangriffs
+            if (context.attack && context.attack.isLance && !this.hasCondition("pw")) return false; // Attacks from Lanzenangriffs
             if (context.attack && context.attack.isRange && !(this.get("shield") || this.hasCondition("d"))) return false; // Ranged attacks
 
-            const multiPenalty = this.isSchildwall ? 0 : this.parryCounter * (6 - (this.get("EK", context) / 2))
-            const res = check(this.get("PA", context) - (modifier + multiPenalty));
+            // Add a small Finte if the attacker's AT exceeds 20
+            const attackMod = context.attack && context.attack.modifier ? context.attack.modifier : 0;
+            if (context.attacker && context.attacker.get("AT") - attackMod > 20) {
+                modifier += Math.round((context.attacker.get("AT") - 20) / 4);
+            }
+
+            const res = check(this.get("PA", context) - modifier);
             this.parryCounter++;
             return res;
         }
@@ -351,15 +365,14 @@ class Troop {
                         break;
                     case "AT":
                         basis = this.ATBasis + this.getCurrentWeapon().ATMod + this.get("EK");
-                        if (this.isSchildwall) basis -= 4;
                         break;
                     case "PA":
                         basis = this.PABasis + this.getCurrentWeapon().PAMod + this.get("EK");
-                        if (this.isSchildwall) basis += 4;
+                        // If not Schildwall, apply the multiParry penalty
+                        basis -= this.hasCondition("sw") ? 0 : this.parryCounter * (6 - (this.get("EK", context) / 2))
                         break;
                     case "FK":
                         basis = this.FKBasis + this.getCurrentWeapon().FKMod + this.get("EK");
-                        if (this.isSchildwall) basis -= 2;
                         break;
                     case "TP":
                         basis = this.get("EK");
@@ -439,8 +452,23 @@ class Troop {
         const targetTroop = stateManager.getTroop(troop);
         if (!targetTroop.isAlive()) return false;
         const target = stateManager.getToken(targetTroop.ref);
-        if (this.isPlaenkeln) return chebyshevDistance(ref, target) < (2.2 * 100);
+        if (this.hasCondition("pl")) return chebyshevDistance(ref, target) < (2.2 * 100);
         else return chebyshevDistance(ref, target) < (1.2 * 100);
+    }
+
+    /**
+     * Returns a list of all the non-allied troops that are in melee range
+     */
+    getEnemiesInMelee() {
+        const stateManager = getGlobal("stateManager");
+        const ref = stateManager.getToken(this.ref);
+        return stateManager.getState("troops").filter(troop => {
+            if (troop.isAlive() && troop.party !== this.party) {
+                const target = stateManager.getToken(troop.ref);
+                if (this.hasCondition("pl")) return chebyshevDistance(ref, target) < (2.2 * 100);
+                else return chebyshevDistance(ref, target) < (1.2 * 100);
+            }
+        });
     }
 
     /**
@@ -457,15 +485,36 @@ class Troop {
         for (const troop of stateManager.getState("troops")) {
             if (troop.isAlive() && troop.meleeTarget === this.name) {
                 const target = stateManager.getToken(troop.ref);
-                if (chebyshevDistance(ref, target) < (1.5 * 100)) return true;
+                if (chebyshevDistance(ref, target) < (1.2 * 100)) return true;
             }
         }
         return false;
     }
 
+    getNumAlliesNearby() {
+        const stateManager = getGlobal("stateManager");
+        const ref = stateManager.getToken(this.ref);
+        return stateManager.getState("troops").filter(troop => {
+            if (troop.isAlive() && troop.party === this.party) {
+                const target = stateManager.getToken(troop.ref);
+                return chebyshevDistance(ref, target) < (1.2 * 100);
+            }
+        }).length;
+    }
+
 
     isAlive() {
         return this.LP > 0;
+    }
+
+    /**
+     * Checks if the troop performed a combat maneuver last turn that would prevent it from healing exhaustion
+     */
+    didCombatMoveLastTurn() {
+        const lastRound = getGlobal("stateManager").getLastRound();
+        if (!lastRound) return false;
+        const maneuvers = lastRound.gamestate.actionQueue.filter(action => action.entity === this.name);
+        return maneuvers.some(action => ["Fernkampf", "Angriff", "Flankierender Angriff", "Nachladen", "Sperrfeuer", "Schnellschuss"].includes(action.name));
     }
 
     /**
@@ -491,8 +540,6 @@ class Troop {
     addCondition(key, name, duration, rest) {
         // Check for immunities
         if (this.hasImmunity(key)) return false;
-        // Pikenwall cannot get shock
-        if (key === "x" && this.isPikenwall) return false;
         // Troops with shields or under cover cannot get barraged
         if (key === "u" && (this.get("shield") || this.hasCondition("d"))) return false;
         if (key === "d") this.removeCondition("u");
@@ -516,7 +563,7 @@ class Troop {
         const has = this.conditions.find(c => c.key === key);
         if (!has) {
             this.conditions.push({ key: key, name: name, counter: duration, ...rest });
-            message(`${this.name} hat den Zustand ${name} ${duration > 0 ? `${duration} Runde(n)` : 'unbegrenzt'} lang erhalten.`);
+            message(`${this.name} hat den Zustand ${name} ${duration > 0 ? `${duration} Phase(n)` : 'unbegrenzt'} lang erhalten.`);
             return true;
         } else {
             if (duration === -1) {
@@ -524,7 +571,7 @@ class Troop {
                 message(`${this.name} hat den Zustand ${name} nun unbegrenzt lang.`);
             }
             if (has.counter >= duration || has.counter === -1) return false;
-            message(`${this.name} hat den Zustand ${name} nun noch weitere ${duration - has.counter} Runden lang.`);
+            message(`${this.name} hat den Zustand ${name} nun noch weitere ${duration - has.counter} Phasen lang.`);
             has.counter = duration;
             return true;
         }
@@ -627,9 +674,26 @@ class Troop {
      * Does some cleanup that happens before the troop's first maneuver
      */
     handleFirstManeuver() {
-        this.isPlaenkeln = false;
-        this.isSchildwall = false;
-        this.isPikenwall = false;
+        if (this.hasCondition("sw") && this.getCondition("sw").counter === 1) this.removeCondition("sw");
+        if (this.hasCondition("pw") && this.getCondition("pw").counter === 1) this.removeCondition("pw");
+        if (this.hasCondition("pl") && this.getCondition("pl").counter === 1) this.removeCondition("pl");
+    }
+
+    tickConditions() {
+        // decrease counter for conditions and remove if necessary
+        this.conditions = this.conditions.map(condition => {
+            if (condition.counter < 0) return condition;
+            return { ...condition, counter: condition.counter - 1 };
+        });
+        [... this.conditions.filter(condition => condition.counter === 0)].forEach(condition => this.removeCondition(condition.key));
+
+        // do the same for immunities
+        this.immunities = this.immunities.map(immunity => {
+            if (immunity.counter < 0) return immunity;
+            return { ...immunity, counter: immunity.counter - 1 };
+        });
+        [... this.immunities.filter(immunity => immunity.counter === 0)].forEach(immunity => this.removeImmunity(immunity.key));
+
     }
 
     /**
@@ -639,6 +703,8 @@ class Troop {
         // check for Regeneration
         if (this.RegP >= 10)
             this.doRegenerationsProbe();
+
+        this.tickConditions();
     }
 
     /**
@@ -660,26 +726,16 @@ class Troop {
             this.meleeCounter = 0;
 
         // check for End of round checks
-        if (this.meleeCounter > 0 && this.meleeCounter % 3 === 0)
+        if (this.meleeCounter > 0 && (this.meleeCounter % 3 === 0 || this.hasCondition("g")))
             this.doMoralProbe();
         if (this.ErsP >= this.get("AU"))
             this.doAusdauerProbe();
         if (this.RegP >= 10)
             this.doRegenerationsProbe();
 
-        // decrease counter for conditions and remove if necessary
-        this.conditions = this.conditions.map(condition => {
-            if (condition.counter < 0) return condition;
-            return { ...condition, counter: condition.counter - 1 };
-        });
-        [... this.conditions.filter(condition => condition.counter === 0)].forEach(condition => this.removeCondition(condition.key));
+        this.tickConditions();
 
-        // do the same for immunities
-        this.immunities = this.immunities.map(immunity => {
-            if (immunity.counter < 0) return immunity;
-            return { ...immunity, counter: immunity.counter - 1 };
-        });
-        [... this.immunities.filter(immunity => immunity.counter === 0)].forEach(immunity => this.removeImmunity(immunity.key));
+        this.takeDamage(calculateConditionDamage(this.conditions.map(condition => condition.key)), { damage: { isTrue: true } });
 
         // move all positive and negative modifiers one step closer to 0
         Object.keys(this.mods).forEach(key => {

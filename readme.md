@@ -9,6 +9,23 @@ Empfohlen: node v.6.14.2
 - `npm start` zum Starten des Programms (es empfiehlt sich, in der `main.js` die Flag `isDev` auf `true` zu setzen)
 
 Alternativ ist die aktuelle Version unter `Releases` als Zip-Bundle mit EXE abgelegt.
+
+## Changelog
+### Version 0.2
+#### Zustände
+- Zustände und Immunitäten ticken nun sowohl am Ende einer Kampfrunde als auch am Ende einer Manöverrunde. Die Dauer von Zuständen, die durch Manöver und Aktionen angerichtet werden, wurde angepasst.
+- Pikenwall, Schildwall und Plänkeln als dedizierte Zustände hinzugefügt.
+- Custom-Zustände können nun die Anzahl Manöver und Aktionen einer Einheit verändern.
+- Custom-Zustände können nun Schaden anrichten. Hierzu kann dem Zustand im Feld `Schaden` ein beliebiger TP-String gegeben werden, der jeder Einheit, die diesen Zustand besitzt, am Ende einer Runde zugefügt wird.
+
+#### Manöver
+- Freie Aktionen wurden hinzugefügt
+- bestehende Manöver und Aktionen wurden entsprechend der Regeländerungen angepasst.
+
+#### AT / PA
+- Einheiten mit netto-AT über 20 erhalten nun automatisch zur Hälfte Fintenangriff und zur Hälfte Vernichtungsschlag auf ihre überschüssigen Punkte AT
+- Einheiten mit netto-PA über 20 erschweren die AT jeder Einheit, die sie angreift, um die Hälfte der überschüssigen Punkte PA.
+
 ## Benutzeranleitung
 ### Einrichten
 Nach dem ersten Starten legt Scharmützeler einen Ordner im `Dokumente`-Verzeichnis des aktuellen Users an. Hier können Workspaces erstellt werden. Ein Workspace ist ein Ordner, der alle relevanten Dateien für eine Schlacht enthält. Diese Dateien sind:
