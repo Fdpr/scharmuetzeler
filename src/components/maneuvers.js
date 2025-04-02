@@ -137,7 +137,7 @@ const maneuvers = [
                 }
             }
             if (target) {
-                const { flankLog, flankShortLog } = flank(target, troop);
+                const { log: flankLog, shortLog: flankShortLog } = flank(target, troop);
                 return {
                     pause: false,
                     log: [`${troop.name} scheitert einen geordneten Rückzug.`, ...flankLog],
@@ -224,7 +224,7 @@ const maneuvers = [
         }),
         perform: (troop, targets) => {
             const target = targets[0];
-            const log = [`${troop.name} führt einen Lanzenangriff auf ${target.name} aus.`];
+            let log = [`${troop.name} führt einen Lanzenangriff auf ${target.name} aus.`];
             troop.setMeleeTarget(target.name);
             const context = {
                 attacker: troop,
@@ -251,13 +251,15 @@ const maneuvers = [
 
                 const damage = troop.doDamage(context);
                 const takenDamage = target.takeDamage(damage, context);
-                const shortLog = [`getroffen, ${damage} TP (${takenDamage} SP)`];
+                let shortLog = [`getroffen, ${damage} TP (${takenDamage} SP)`];
                 log.push(`${troop.name} trifft ${target.name} und richtet ${damage} TP (${takenDamage} SP) an.`);
+                let shortLogExtra = [];
                 if (target.hasCondition("pw")) {
-                    const { flankLog, flankShortLog } = flank(target, troop);
+                    const { log: flankLog, shortLog: flankShortLog } = flank(target, troop);
+                    shortLogExtra = flankShortLog;
                     log = [...log, ...flankLog];
                 }
-                shortLog = [...shortLog, ...flankShortLog];
+                shortLog = [...shortLog, ...shortLogExtra];
                 return {
                     pause: false,
                     log: log,
@@ -282,8 +284,8 @@ const maneuvers = [
         }),
         perform: (troop, targets) => {
             const target = targets[0];
-            const log = [`${troop.name} führt einen Sturmangriff auf ${target.name} aus.`];
-            const shortLog = [];
+            let log = [`${troop.name} führt einen Sturmangriff auf ${target.name} aus.`];
+            let shortLog = [];
             troop.setMeleeTarget(target.name);
             const context = {
                 attacker: troop,
@@ -314,7 +316,7 @@ const maneuvers = [
             }
 
             if (target.hasCondition("pw")) {
-                const { flankLog, flankShortLog } = flank(target, troop);
+                const { log: flankLog, shortLog: flankShortLog } = flank(target, troop);
                 log = [...log, ...flankLog];
                 shortLog = [...shortLog, ...flankShortLog];
             }
@@ -1041,7 +1043,8 @@ function generateBeleidigen(stat) {
                     shortLog: ["Gescheitert"]
                 }
             }
-            targets[0].mods[stat] = Math.max(targets[0].mods[stat] - leader.getBonus(stat), - leader.getBonus(stat));
+            const penalty = leader.get(stat + "Bonus");
+            targets[0].mods[stat] = Math.max(targets[0].mods[stat] - penalty, -penalty);
             return {
                 pause: false,
                 log: [`${leader.name} beleidigt ${targets[0].name}.`],

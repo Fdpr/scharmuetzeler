@@ -306,9 +306,9 @@ function TroopEditor(troop) {
     addWeaponButton.innerText = 'Hinzufügen';
     addWeaponButton.addEventListener('click', () => {
         const weapon = globalWeapons[newWeaponSelect.selectedIndex].copy();
-        if (parseInt(weaponATMod.value)) weapon.ATMod += parseInt(weaponATMod.value);
-        if (parseInt(weaponPAMod.value)) weapon.PAMod += parseInt(weaponPAMod.value);
-        if (parseInt(weaponFKMod.value)) weapon.FKMod += parseInt(weaponFKMod.value);
+        if (parseInt(weaponATMod.value)) weapon.ATMod = parseInt(weaponATMod.value);
+        if (parseInt(weaponPAMod.value)) weapon.PAMod = parseInt(weaponPAMod.value);
+        if (parseInt(weaponFKMod.value)) weapon.FKMod = parseInt(weaponFKMod.value);
         weapon.shield = weaponShield.checked;
         troop.addWeapon(weapon);
         generateWeaponOptions(troop, weaponSelect);

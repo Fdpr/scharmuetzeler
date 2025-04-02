@@ -1,3 +1,4 @@
+const stateManager = require('@electron/remote').getGlobal('stateManager');
 /* 
 * This script is responsible for creating and managing popups that appear on the screen.
 * It listens for notifications from the main process and displays them as popups.
@@ -13,7 +14,7 @@ const addPopup = (message) => {
     setTimeout(() => {
         popup.classList.add('fadeout');
         setTimeout(() => popup.remove(), 250)
-    }, 1500);
+    }, stateManager.getState("config.popupDuration"));
 }
 
 require('@electron/remote').getGlobal('notificationManager').register(addPopup);

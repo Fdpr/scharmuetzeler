@@ -461,6 +461,7 @@ function TimelineSettingsEditor() {
     container.appendChild(settingsTitle);
     generateInput("Aktionen pro Block", "actionsPerBlock", stateManager.getState("config.actionBlockSize"), (e) => { stateManager.updateState("config.actionBlockSize", parseInt(e.target.value)) }, container, "number");
     generateInput("Pause zwischen Aktionen (ms)", "actionDelay", stateManager.getState("config.actionDelay"), (e) => { stateManager.updateState("config.actionDelay", parseInt(e.target.value)) }, container, "number");
+    generateInput("Anzeigedauer Popups (ms)", "popupDuration", stateManager.getState("config.popupDuration"), (e) => { stateManager.updateState("config.popupDuration", parseInt(e.target.value)) }, container, "number");
 
     return container;
 }

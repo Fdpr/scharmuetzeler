@@ -17,6 +17,7 @@ class StateManager {
                 parties: ["Partei"],
                 actionDelay: 250,
                 actionBlockSize: 3,
+                popupDuration: 1500,
             },
             gamestate: {
                 round: 0,

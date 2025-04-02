@@ -26,6 +26,11 @@ Alternativ ist die aktuelle Version unter `Releases` als Zip-Bundle mit EXE abge
 - Einheiten mit netto-AT über 20 erhalten nun automatisch zur Hälfte Fintenangriff und zur Hälfte Vernichtungsschlag auf ihre überschüssigen Punkte AT
 - Einheiten mit netto-PA über 20 erschweren die AT jeder Einheit, die sie angreift, um die Hälfte der überschüssigen Punkte PA.
 
+
+#### Oberfläche
+- `d` bringt die aktuelle Einheit in Deckung (oder entfernt den Zustand, wenn sie ihn bereits hat)
+- Die Anzeigedauer von Popups kann nun im Admin-Panel festgelegt werden
+
 ## Benutzeranleitung
 ### Einrichten
 Nach dem ersten Starten legt Scharmützeler einen Ordner im `Dokumente`-Verzeichnis des aktuellen Users an. Hier können Workspaces erstellt werden. Ein Workspace ist ein Ordner, der alle relevanten Dateien für eine Schlacht enthält. Diese Dateien sind:
