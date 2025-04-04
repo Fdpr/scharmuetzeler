@@ -215,7 +215,7 @@ function drawTokens(selection, tokens) {
                             .attr("stroke-width", 3)
                             .attr("fill", "none");
                         let shootRange = gridSize * (d.type === "troop" ? stateManager.getTroop(d.name).get("reach") : 0);
-                        shootRange = shootRange > 1 ? shootRange : 0;
+                        shootRange = shootRange > gridSize ? shootRange : 0;
                         d3.select("#content").append("rect")
                             .attr("id", "shoot-range")
                             .attr("x", d.x - shootRange)

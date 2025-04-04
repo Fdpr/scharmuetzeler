@@ -660,7 +660,7 @@ const actions = [
             max: 1,
             display: `Wähle die Einheit, die ${troop.name} nach dem Nachladen im Fernkampf angreifen soll.`
         }),
-        checkTargeted: (troop, targets) => true,
+        checkTargeted: (troop, targets) => troop.get("reach") > 1 && troop.get("nachladen") > 0,
         perform: (troop, targets) => {
             if (targets.length > 0) {
                 troop.setRangeTarget(targets[0].name);
@@ -848,7 +848,7 @@ const actions = [
         name: "Absetzen",
         checkUntargeted: (troop) => troop.get("EKAction") >= 3 && troop.isInMelee() && !(troop.hasCondition("e") || troop.hasCondition("s")),
         select: (troop) => ({ select: false }),
-        checkTargeted: (troop, targets) => true,
+        checkTargeted: (troop, targets) => troop.get("EKAction") >= 3 && troop.isInMelee() && !(troop.hasCondition("e") || troop.hasCondition("s")),
         perform: (troop, targets) => {
             troop.exhaust(1);
             troop.isMove = true;
@@ -922,7 +922,7 @@ const freeActions = [
         checkUntargeted: (troop) => troop.get("reach") > 1,
         check: (troop) => troop.get("reach") > 1,
         select: (troop) => ({ select: false }), 
-        checkTargeted: (troop, targets) => true,
+        checkTargeted: (troop, targets) => troop.get("reach") > 1,
         perform: (troop, targets) => {
             troop.addCondition("z", "Position: Zielen", 3);
             troop.exhaust(1);
