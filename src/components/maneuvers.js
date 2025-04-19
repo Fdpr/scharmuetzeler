@@ -893,6 +893,10 @@ const freeActions = [
         select: (troop) => ({ select: false }),
         checkTargeted: (troop, targets) => true,
         perform: (troop, targets) => {
+            troop.removeCondition("ko");
+            troop.removeCondition("o");
+            troop.removeCondition("z");
+            troop.removeCondition("w");
             troop.addCondition("v", "Position: Defensiv", 3);
             return {
                 pause: false,
@@ -907,6 +911,10 @@ const freeActions = [
         select: (troop) => ({ select: false }),
         checkTargeted: (troop, targets) => true,
         perform: (troop, targets) => {
+            troop.removeCondition("ko");
+            troop.removeCondition("v");
+            troop.removeCondition("z");
+            troop.removeCondition("w");
             troop.addCondition("o", "Position: Offensiv", 3);
             return {
                 pause: false,
@@ -921,6 +929,10 @@ const freeActions = [
         select: (troop) => ({ select: false }), 
         checkTargeted: (troop, targets) => troop.get("reach") > 1,
         perform: (troop, targets) => {
+            troop.removeCondition("ko");
+            troop.removeCondition("v");
+            troop.removeCondition("o");
+            troop.removeCondition("w");
             troop.addCondition("z", "Position: Zielen", 3);
             troop.exhaust(1);
             return {
@@ -936,6 +948,10 @@ const freeActions = [
         select: (troop) => ({ select: false }),
         checkTargeted: (troop, targets) => true,
         perform: (troop, targets) => {
+            troop.removeCondition("ko");
+            troop.removeCondition("v");
+            troop.removeCondition("z");
+            troop.removeCondition("o");
             troop.addCondition("w", "Position: Bewegung", 3);
             troop.exhaust(2);
             return {
@@ -951,6 +967,10 @@ const freeActions = [
         select: (troop) => ({ select: false }),
         checkTargeted: (troop, targets) => true,
         perform: (troop, targets) => {
+            troop.removeCondition("o");
+            troop.removeCondition("v");
+            troop.removeCondition("z");
+            troop.removeCondition("w");
             troop.addCondition("ko", "Position: Konter", 2);
             return {
                 pause: false,

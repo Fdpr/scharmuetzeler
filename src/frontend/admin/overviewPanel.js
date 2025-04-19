@@ -22,7 +22,7 @@ function PartyOverview(party, troops) {
         const values = [
             troop.name,
             troop.get("EK"),
-            troop.get("LP"),
+            `${troop.get("LP")}/${troop.get("MaxLP")}`,
             `${troop.get("MO")}/${troop.get("MOimmun")}`,
             `${troop.get("ErsP")}/${troop.get("RegP")}`,
             troop.conditions.map(c => c.key).join(", "),

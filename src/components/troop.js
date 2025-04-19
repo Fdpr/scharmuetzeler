@@ -369,7 +369,7 @@ class Troop {
                     case "PA":
                         basis = this.PABasis + this.getCurrentWeapon().PAMod + this.get("EK");
                         // If not Schildwall, apply the multiParry penalty
-                        basis -= this.hasCondition("sw") ? 0 : this.parryCounter * (6 - (this.get("EK", context) / 2))
+                        basis -= this.hasCondition("sw") ? 0 : Math.ceil(this.parryCounter * (6 - (this.get("EK", context) / 2)));
                         break;
                     case "FK":
                         basis = this.FKBasis + this.getCurrentWeapon().FKMod + this.get("EK");
