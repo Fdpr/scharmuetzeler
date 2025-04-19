@@ -500,7 +500,6 @@ function generateVernichtung(modifier, damageBoost) {
                     const takenDamage = target.takeDamage(damage + damageBoost, context);
                     troop.addCondition("l", "Abgelenkt", 1, { focus: target.name });
                     target.modify("MO", -2);
-                    if (target.hasCondition("g")) target.doMoralProbe();
                     log.push(`${troop.name} trifft ${target.name} und richtet ${damage} TP (${takenDamage} SP) an.`);
                     return {
                         pause: false,
@@ -710,8 +709,7 @@ const actions = [
                         const damage = troop.doDamage(context);
                         const takenDamage = target.takeDamage(damage, context);
                         if (takenDamage > 7 + target.get("EK")) {
-                            target.addCondition("x", "Schock", 1);
-                            target.doMoralProbe();
+                            if (target.addCondition("x", "Schock", 1)) target.doMoralProbe();
                         }
                         log.push(`${troop.name} trifft ${target.name} und richtet ${damage} TP (${takenDamage} SP) an.`);
                         return {
@@ -780,8 +778,7 @@ const actions = [
                     const damage = troop.doDamage(context);
                     const takenDamage = target.takeDamage(damage, context);
                     if (takenDamage > 7 + target.get("EK")) {
-                        target.addCondition("x", "Schock", 1);
-                        target.doMoralProbe();
+                        if (target.addCondition("x", "Schock", 1)) target.doMoralProbe();
                     }
                     log.push(`${troop.name} trifft ${target.name} und richtet ${damage} TP (${takenDamage} SP) an.`);
                     return {
