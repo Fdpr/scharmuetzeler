@@ -580,7 +580,7 @@ class ActionManager {
                     name: leader.action,
                     type: "leaderAction",
                     entity: leader.name,
-                    targets: leader.targets.map(name => this.stateManager.getLeader(name)) || []
+                    targets: leader.targets.map(name => this.stateManager.getTroop(name)) || []
                 }
                 this.gamestate.activeEntity = leader.name;
                 this.performLeaderAction(true);
